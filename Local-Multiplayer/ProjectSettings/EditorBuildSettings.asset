@@ -12,11 +12,17 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: 67d90d1c8dac694408895a5da40b5852
   - enabled: 1
-    path: Assets/Scenes/Game.unity
+    path: Assets/Scenes/Round1.unity
     guid: c0b6f6d948f969d44a88bafe8b98322e
   - enabled: 0
     path: Assets/Scenes/LevelDesign.unity
     guid: a7bf939889bff8f41ac2409de82e4c28
+  - enabled: 1
+    path: Assets/Scenes/Round2.unity
+    guid: c8452a4fb2231d149b70cdfb4e22e549
+  - enabled: 1
+    path: Assets/Scenes/Round3.unity
+    guid: 7724d7efdc8df5d479c93db540aa7283
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: c72fde7d841ad85409177be57f718a6a, type: 3}
   m_UseUCBPForAssetBundles: 0
