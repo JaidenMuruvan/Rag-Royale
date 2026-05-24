@@ -7,26 +7,45 @@ using UnityEngine.InputSystem;
 public class MultiplayerPlayerController : MonoBehaviour
 {
     [Header("Movement")]
-    [SerializeField] private float moveSpeed = 6f;
-    [SerializeField] private float jumpForce = 5f;
-    [SerializeField] private float gravity = -18f;
+    [SerializeField]
+    private float moveSpeed = 6f;
+
+    [SerializeField]
+    private float jumpForce = 5f;
+
+    [SerializeField]
+    private float gravity = -18f;
 
     [Header("Ground Check")]
-    [SerializeField] private Transform groundCheck;
-    [SerializeField] private float groundCheckRadius = 0.2f;
-    [SerializeField] private LayerMask groundLayer;
+    [SerializeField]
+    private Transform groundCheck;
+
+    [SerializeField]
+    private float groundCheckRadius = 0.2f;
+
+    [SerializeField]
+    private LayerMask groundLayer;
 
     [Header("Character Setup")]
-    [SerializeField] private Transform characterVisualSlot;
-    [SerializeField] private GameObject p1CharacterPrefab;
-    [SerializeField] private GameObject p2CharacterPrefab;
+    [SerializeField]
+    private Transform characterVisualSlot;
+
+    [SerializeField]
+    private GameObject p1CharacterPrefab;
+
+    [SerializeField]
+    private GameObject p2CharacterPrefab;
 
     [Header("Spawn Points")]
-    [SerializeField] private Transform p1SpawnPoint;
-    [SerializeField] private Transform p2SpawnPoint;
+    [SerializeField]
+    private Transform p1SpawnPoint;
+
+    [SerializeField]
+    private Transform p2SpawnPoint;
 
     [Header("Knockback")]
-    [SerializeField] private float knockbackDecay = 10f;
+    [SerializeField]
+    private float knockbackDecay = 10f;
 
     [Header("Animations")]
     private Animator animator;
@@ -50,16 +69,17 @@ public class MultiplayerPlayerController : MonoBehaviour
     public event Action OnLightAttackEvent;
     public event Action OnHeavyAttackEvent;
     public event Action OnReactionEvent;
-    public event Action OnGetUpEvent;   
+    public event Action OnGetUpEvent;
+
+    public event Action OnCollectPressed;
+    public event Action OnCollectReleased;
 
     private bool movementEnabled = false;
     public bool BlockHeld { get; private set; }
 
     // set at spawn based on which direction this player should naturally face
-    // p1 faces right (+1), p2 faces left (-1) this has been a bitch wtf 
+    // p1 faces right (+1), p2 faces left (-1) this has been a bitch wtf
     private float facingDirection = 1f;
-
-   
 
     private void Awake()
     {
@@ -74,8 +94,6 @@ public class MultiplayerPlayerController : MonoBehaviour
     {
         if (playerInput != null)
             PlayerID = playerInput.playerIndex + 1;
-
-
     }
 
     private void Start()
@@ -89,8 +107,11 @@ public class MultiplayerPlayerController : MonoBehaviour
 
     private void Update()
     {
-
-
+        // TEMP DEBUG —tryna check if chain logic works AND IT DOESS
+        if (PlayerID == 1 && Keyboard.current.eKey.wasPressedThisFrame)
+            OnCollectPressed?.Invoke();
+        if (PlayerID == 1 && Keyboard.current.eKey.wasReleasedThisFrame)
+            OnCollectReleased?.Invoke();
 
         CheckGround();
         ApplyGravity();
@@ -109,11 +130,10 @@ public class MultiplayerPlayerController : MonoBehaviour
 
         //Animation------------------------------------
 
-    if (knockdownManager != null && knockdownManager.CurrentState != KnockdownState.None)
-    {
-        return;
-    }
-
+        if (knockdownManager != null && knockdownManager.CurrentState != KnockdownState.None)
+        {
+            return;
+        }
 
         CombatSystem combat = GetComponent<CombatSystem>();
 
@@ -134,22 +154,14 @@ public class MultiplayerPlayerController : MonoBehaviour
         else if (Mathf.Abs(moveInput.x) > 0.1f)
         {
             animationScript.PlayRun();
-
         }
         else
         {
             animationScript.PlayIdle();
-
         }
-
-
-
-
     }
 
-    // -------------------------------------------------------
     // spawn stuffff
-   
 
     public void MoveToSpawnPoint()
     {
@@ -158,7 +170,6 @@ public class MultiplayerPlayerController : MonoBehaviour
 
         if (sp == null)
         {
-
             return;
         }
 
@@ -175,37 +186,37 @@ public class MultiplayerPlayerController : MonoBehaviour
         if (prefab == null || characterVisualSlot == null)
             return;
 
-        GameObject Player = Instantiate(prefab, characterVisualSlot.position, characterVisualSlot.rotation, characterVisualSlot);
+        GameObject Player = Instantiate(
+            prefab,
+            characterVisualSlot.position,
+            characterVisualSlot.rotation,
+            characterVisualSlot
+        );
         animationScript = Player.GetComponent<AnimationManager>();
-      
+
         if (PlayerID == 2)
         {
             Vector3 s = characterVisualSlot.localScale;
             characterVisualSlot.localScale = new Vector3(-Mathf.Abs(s.x), s.y, s.z);
         }
-
-
     }
 
     ///input callbacks
     public void OnMove(InputAction.CallbackContext ctx)
     {
         moveInput = ctx.ReadValue<Vector2>();
-
     }
 
     public void OnJump(InputAction.CallbackContext ctx)
     {
-        if (ctx.started && isGrounded) jumpQueued = true;
-
-
+        if (ctx.started && isGrounded)
+            jumpQueued = true;
     }
 
     public void OnLightAttack(InputAction.CallbackContext ctx)
     {
         if (ctx.started)
         {
-
             OnLightAttackEvent?.Invoke();
         }
     }
@@ -214,15 +225,16 @@ public class MultiplayerPlayerController : MonoBehaviour
     {
         if (ctx.started)
         {
-
             OnHeavyAttackEvent?.Invoke();
         }
     }
 
     public void OnBlock(InputAction.CallbackContext ctx)
     {
-        if (ctx.started) BlockHeld = true;
-        if (ctx.canceled) BlockHeld = false;
+        if (ctx.started)
+            BlockHeld = true;
+        if (ctx.canceled)
+            BlockHeld = false;
     }
 
     public void OnReactionTrigger(InputAction.CallbackContext ctx)
@@ -231,11 +243,19 @@ public class MultiplayerPlayerController : MonoBehaviour
             OnReactionEvent?.Invoke();
     }
 
-
     public void OnGetUp(InputAction.CallbackContext ctx)
     {
         if (ctx.started)
             OnGetUpEvent?.Invoke();
+    }
+
+    public void OnCollect(InputAction.CallbackContext ctx)
+    {
+        Debug.Log($"[Controller P{PlayerID}] OnCollect fired — phase={ctx.phase}");
+        if (ctx.started)
+            OnCollectPressed?.Invoke();
+        if (ctx.canceled)
+            OnCollectReleased?.Invoke();
     }
 
     // lets knockdownmanager grab the visual slot to rotate/tumble it
@@ -243,17 +263,15 @@ public class MultiplayerPlayerController : MonoBehaviour
 
     // voodoo physics layer reads these each frame
     public Vector3 GetMoveDirection() => new Vector3(moveInput.x, 0f, 0f).normalized;
+
     public bool IsGrounded => isGrounded;
 
-    // -------------------------------------------------------
     // movementt
-    // -------------------------------------------------------
 
     private void CheckGround()
     {
-        Vector3 pos = groundCheck != null
-            ? groundCheck.position
-            : transform.position + Vector3.down * 0.9f;
+        Vector3 pos =
+            groundCheck != null ? groundCheck.position : transform.position + Vector3.down * 0.9f;
 
         isGrounded = Physics.CheckSphere(pos, groundCheckRadius, groundLayer);
     }
@@ -268,7 +286,8 @@ public class MultiplayerPlayerController : MonoBehaviour
 
     private void HandleJump()
     {
-        if (!jumpQueued) return;
+        if (!jumpQueued)
+            return;
         verticalVelocity = jumpForce;
         jumpQueued = false;
     }
@@ -276,9 +295,11 @@ public class MultiplayerPlayerController : MonoBehaviour
     private void MoveCharacter()
     {
         Vector3 horizontal = new Vector3(moveInput.x, 0f, 0f);
-        if (horizontal.magnitude > 1f) horizontal.Normalize();
+        if (horizontal.magnitude > 1f)
+            horizontal.Normalize();
 
-        Vector3 finalMove = horizontal * moveSpeed + Vector3.up * verticalVelocity + knockbackVelocity;
+        Vector3 finalMove =
+            horizontal * moveSpeed + Vector3.up * verticalVelocity + knockbackVelocity;
         cc.Move(finalMove * Time.deltaTime);
 
         if (horizontal.x != 0f && characterVisualSlot != null)
@@ -292,9 +313,7 @@ public class MultiplayerPlayerController : MonoBehaviour
         }
     }
 
-    // -------------------------------------------------------
     // knockback
-
 
     public void ApplyKnockback(Vector3 force)
     {
@@ -303,13 +322,15 @@ public class MultiplayerPlayerController : MonoBehaviour
 
     private void ApplyKnockbackDecay()
     {
-        if (knockbackVelocity == Vector3.zero) return;
+        if (knockbackVelocity == Vector3.zero)
+            return;
 
-        knockbackVelocity = Vector3.MoveTowards(knockbackVelocity, Vector3.zero,
-                                                knockbackDecay * Time.deltaTime);
+        knockbackVelocity = Vector3.MoveTowards(
+            knockbackVelocity,
+            Vector3.zero,
+            knockbackDecay * Time.deltaTime
+        );
     }
-
-
 
     public void SetMovementEnabled(bool enabled)
     {
@@ -323,16 +344,13 @@ public class MultiplayerPlayerController : MonoBehaviour
         }
     }
 
-    // -------------------------------------------------------
     // gizmos
-
 
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.green;
-        Vector3 pos = groundCheck != null
-            ? groundCheck.position
-            : transform.position + Vector3.down * 0.9f;
+        Vector3 pos =
+            groundCheck != null ? groundCheck.position : transform.position + Vector3.down * 0.9f;
         Gizmos.DrawWireSphere(pos, groundCheckRadius);
     }
 }

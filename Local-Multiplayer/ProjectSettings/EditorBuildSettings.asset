@@ -24,5 +24,6 @@ EditorBuildSettings:
     path: Assets/Scenes/Round3.unity
     guid: 7724d7efdc8df5d479c93db540aa7283
   m_configObjects:
+    com.unity.input.settings: {fileID: 11400000, guid: 575e0e5a622aece4f95275ae3e1ec5ba, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: c72fde7d841ad85409177be57f718a6a, type: 3}
   m_UseUCBPForAssetBundles: 0

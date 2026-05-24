@@ -154,6 +154,15 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Collect"",
+                    ""type"": ""Button"",
+                    ""id"": ""96f58f0f-93b7-41b0-93ed-0b0d8418471b"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -354,6 +363,28 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
                     ""action"": ""GetUp"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""6e27e3e1-4535-44bb-935e-69074ca867e8"",
+                    ""path"": ""<Keyboard>/e"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Collect"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""6613114d-6375-4ccc-93be-85c844bb1325"",
+                    ""path"": ""<Gamepad>/rightTrigger"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Collect"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         },
@@ -431,6 +462,7 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
         m_PlayerControls_ReactionTrigger = m_PlayerControls.FindAction("ReactionTrigger", throwIfNotFound: true);
         m_PlayerControls_Block = m_PlayerControls.FindAction("Block", throwIfNotFound: true);
         m_PlayerControls_GetUp = m_PlayerControls.FindAction("GetUp", throwIfNotFound: true);
+        m_PlayerControls_Collect = m_PlayerControls.FindAction("Collect", throwIfNotFound: true);
         // UI
         m_UI = asset.FindActionMap("UI", throwIfNotFound: true);
         m_UI_MenuOpenClose = m_UI.FindAction("MenuOpenClose", throwIfNotFound: true);
@@ -522,6 +554,7 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_PlayerControls_ReactionTrigger;
     private readonly InputAction m_PlayerControls_Block;
     private readonly InputAction m_PlayerControls_GetUp;
+    private readonly InputAction m_PlayerControls_Collect;
     /// <summary>
     /// Provides access to input actions defined in input action map "PlayerControls".
     /// </summary>
@@ -561,6 +594,10 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "PlayerControls/GetUp".
         /// </summary>
         public InputAction @GetUp => m_Wrapper.m_PlayerControls_GetUp;
+        /// <summary>
+        /// Provides access to the underlying input action "PlayerControls/Collect".
+        /// </summary>
+        public InputAction @Collect => m_Wrapper.m_PlayerControls_Collect;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -608,6 +645,9 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
             @GetUp.started += instance.OnGetUp;
             @GetUp.performed += instance.OnGetUp;
             @GetUp.canceled += instance.OnGetUp;
+            @Collect.started += instance.OnCollect;
+            @Collect.performed += instance.OnCollect;
+            @Collect.canceled += instance.OnCollect;
         }
 
         /// <summary>
@@ -640,6 +680,9 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
             @GetUp.started -= instance.OnGetUp;
             @GetUp.performed -= instance.OnGetUp;
             @GetUp.canceled -= instance.OnGetUp;
+            @Collect.started -= instance.OnCollect;
+            @Collect.performed -= instance.OnCollect;
+            @Collect.canceled -= instance.OnCollect;
         }
 
         /// <summary>
@@ -851,6 +894,13 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnGetUp(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Collect" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnCollect(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "UI" which allows adding and removing callbacks.
