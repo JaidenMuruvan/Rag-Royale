@@ -2,18 +2,13 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-/// <summary>
-/// A simple reusable round timer.
-/// Start it by calling StartTimer(). It fires OnTimerExpired when it hits zero
-/// and ticks OnTimerTick every second so the UI can update.
-/// </summary>
 public class RoundTimer : MonoBehaviour
 {
     [Header("Settings")]
     [SerializeField]
     private float duration = 60f; // seconds
 
-    // --- events ---
+    //  events
     public UnityEvent<float> OnTimerTick; // fires every frame with time remaining
     public UnityEvent OnTimerExpired; // fires once at zero
 

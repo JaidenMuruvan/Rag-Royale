@@ -1,13 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-/// <summary>
-/// Round 2 scene orchestrator. Sits alongside RoundManager on the same GameObject.
-///
-/// STANDALONE TESTING: Works with no MatchData present.
-/// RoundManager falls back to Inspector defaults when MatchData is absent.
-/// KillerShotManager.currentRound is set to 2 in Awake.
-/// </summary>
 [RequireComponent(typeof(RoundManager))]
 public class Round2Manager : MonoBehaviour
 {

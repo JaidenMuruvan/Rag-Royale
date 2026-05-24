@@ -185,6 +185,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NeedlePickup
   snapSpeed: 18
   holdOffset: {x: 0, y: 0, z: 0}
+  dropDuration: 0.1
 --- !u!54 &1708108401414221367
 Rigidbody:
   m_ObjectHideFlags: 0

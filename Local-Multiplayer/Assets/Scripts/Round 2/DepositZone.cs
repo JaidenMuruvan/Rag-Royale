@@ -15,13 +15,14 @@ public class DepositZone : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         var ctrl = other.GetComponentInParent<MultiplayerPlayerController>();
-        if (ctrl != null) OnPlayerEnter?.Invoke(ctrl.PlayerID);
+        if (ctrl != null)
+            OnPlayerEnter?.Invoke(ctrl.PlayerID);
     }
 
     private void OnTriggerExit(Collider other)
     {
         var ctrl = other.GetComponentInParent<MultiplayerPlayerController>();
-        if (ctrl != null) OnPlayerExit?.Invoke(ctrl.PlayerID);
+        if (ctrl != null)
+            OnPlayerExit?.Invoke(ctrl.PlayerID);
     }
 }
-

@@ -4,18 +4,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// All UI for Round 2:
-///   - Needle count panels (image × number) for each player
-///   - Shared pile count
-///   - Round timer
-///   - Control prompt hints (collect / deposit)
-///   - Zone proximity indicators
-///   - Magical floating needle steal animation (killer shot win)
-///   - Killer shot winner banner
-///
-/// Wire all references in the Inspector.
-/// </summary>
 public class Round2UI : MonoBehaviour
 {
     // Inspector — Needle Count Panels

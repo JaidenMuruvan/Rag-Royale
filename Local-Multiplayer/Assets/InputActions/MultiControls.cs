@@ -378,7 +378,7 @@ public partial class @MultiControls: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""6613114d-6375-4ccc-93be-85c844bb1325"",
-                    ""path"": ""<Gamepad>/rightTrigger"",
+                    ""path"": ""<Gamepad>/rightShoulder"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
