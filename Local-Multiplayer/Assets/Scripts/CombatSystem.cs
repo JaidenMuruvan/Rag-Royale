@@ -68,7 +68,7 @@ public class CombatSystem : MonoBehaviour
     private CombatVFX opponentVFX;
     private bool opponentLinked = false;
 
-    // --- state ---
+    //  state
     public bool IsBlocking { get; private set; }
     public bool IsAttacking { get; private set; }
     private bool canLight = true;

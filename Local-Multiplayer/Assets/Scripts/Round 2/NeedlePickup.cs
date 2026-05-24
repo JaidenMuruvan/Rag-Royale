@@ -1,20 +1,6 @@
+using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// Sits on each pre-placed needle GameObject in the scene.
-/// No spawning — assign all needles directly in NeedleManager's Inspector list.
-///
-/// On collect: tints the needle's Renderer to the collecting player's colour.
-/// On deposit: colour stays (it's now owned by that player's stash).
-/// On steal:   retints to the winner's colour.
-/// On reset:   returns to the neutral pile colour.
-///
-/// States:
-///   InPile       — sitting in pile, neutral colour, waiting
-///   HeldByPlayer — snapping to player's hold point, tinted to player colour
-///   Deposited    — hidden (deactivated), counted in stash, ready for Round 3
-///   Projectile   — Round 3: physics launched
-/// </summary>
 [RequireComponent(typeof(Collider))]
 public class NeedlePickup : MonoBehaviour
 {
@@ -24,6 +10,10 @@ public class NeedlePickup : MonoBehaviour
 
     [SerializeField]
     private Vector3 holdOffset = Vector3.zero;
+
+    [Header("Drop Animation")]
+    [SerializeField]
+    private float dropDuration = 0.35f;
 
     public enum NeedleState
     {
@@ -40,6 +30,9 @@ public class NeedlePickup : MonoBehaviour
     private Collider col;
     private Rigidbody rb;
     private Renderer rend;
+
+    private Vector3 pileRestPosition;
+    private Coroutine dropCoroutine;
 
     private void Awake()
     {
@@ -62,7 +55,6 @@ public class NeedlePickup : MonoBehaviour
 
     // State transitions
 
-    /// <summary>Player collects this needle — snap to their hold point and tint it.</summary>
     public void Collect(Transform playerHoldPoint, int playerID, Color playerColour)
     {
         if (CurrentState != NeedleState.InPile)
@@ -71,15 +63,38 @@ public class NeedlePickup : MonoBehaviour
         CurrentState = NeedleState.HeldByPlayer;
         HeldByPlayerID = playerID;
         holdPoint = playerHoldPoint;
+        pileRestPosition = transform.position;
 
         transform.SetParent(null);
         col.enabled = false;
-
         SetColour(playerColour);
     }
 
-    /// <summary>Player deposits — hide it, keep the colour in case of steal.</summary>
-    public void Deposit()
+    public void ReturnToPile(Color pileColour)
+    {
+        if (CurrentState != NeedleState.HeldByPlayer)
+            return;
+
+        CurrentState = NeedleState.InPile;
+        HeldByPlayerID = 0;
+        holdPoint = null;
+
+        SetColour(pileColour);
+
+        if (dropCoroutine != null)
+            StopCoroutine(dropCoroutine);
+        dropCoroutine = StartCoroutine(
+            ArcTo(
+                pileRestPosition,
+                () =>
+                {
+                    col.enabled = true;
+                }
+            )
+        );
+    }
+
+    public void Deposit(Vector3 depositPilePosition)
     {
         if (CurrentState != NeedleState.HeldByPlayer)
             return;
@@ -87,13 +102,29 @@ public class NeedlePickup : MonoBehaviour
         CurrentState = NeedleState.Deposited;
         HeldByPlayerID = 0;
         holdPoint = null;
+        col.enabled = false;
 
-        gameObject.SetActive(false);
+        if (dropCoroutine != null)
+            StopCoroutine(dropCoroutine);
+        dropCoroutine = StartCoroutine(
+            ArcTo(
+                depositPilePosition,
+                () =>
+                {
+                    gameObject.SetActive(false);
+                }
+            )
+        );
     }
 
-    /// <summary>Killer shot steal — reactivate, retint to winner's colour, snap to their hold point.</summary>
     public void Steal(Transform winnerHoldPoint, int winnerID, Color winnerColour)
     {
+        if (dropCoroutine != null)
+        {
+            StopCoroutine(dropCoroutine);
+            dropCoroutine = null;
+        }
+
         gameObject.SetActive(true);
         CurrentState = NeedleState.HeldByPlayer;
         HeldByPlayerID = winnerID;
@@ -104,9 +135,14 @@ public class NeedlePickup : MonoBehaviour
         SetColour(winnerColour);
     }
 
-    /// <summary>Return to pile — reset colour and re-enable.</summary>
     public void ResetToPile(Color pileColour)
     {
+        if (dropCoroutine != null)
+        {
+            StopCoroutine(dropCoroutine);
+            dropCoroutine = null;
+        }
+
         gameObject.SetActive(true);
         CurrentState = NeedleState.InPile;
         HeldByPlayerID = 0;
@@ -121,9 +157,14 @@ public class NeedlePickup : MonoBehaviour
         SetColour(pileColour);
     }
 
-    /// <summary>Round 3 — bring a deposited needle back as a throwable.</summary>
     public void PrepareAsProjectile(Transform playerHoldPoint, int playerID)
     {
+        if (dropCoroutine != null)
+        {
+            StopCoroutine(dropCoroutine);
+            dropCoroutine = null;
+        }
+
         gameObject.SetActive(true);
         CurrentState = NeedleState.HeldByPlayer;
         HeldByPlayerID = playerID;
@@ -137,7 +178,6 @@ public class NeedlePickup : MonoBehaviour
         }
     }
 
-    /// <summary>Round 3 — launch in direction.</summary>
     public void Launch(Vector3 direction, float speed)
     {
         if (CurrentState == NeedleState.Projectile)
@@ -158,6 +198,8 @@ public class NeedlePickup : MonoBehaviour
             transform.rotation = Quaternion.LookRotation(direction);
     }
 
+    // Movement
+
     private void SnapToHoldPoint()
     {
         if (holdPoint == null)
@@ -171,11 +213,32 @@ public class NeedlePickup : MonoBehaviour
         );
     }
 
+    /// <summary>Smooth arc to a world position, then fire a callback.</summary>
+    private IEnumerator ArcTo(Vector3 target, System.Action onComplete)
+    {
+        Vector3 start = transform.position;
+        Vector3 mid = (start + target) * 0.5f + Vector3.up * 0.3f; // slight upward arc
+        float elapsed = 0f;
+
+        while (elapsed < dropDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / dropDuration);
+            float et = 1f - Mathf.Pow(1f - t, 3f); // ease-out cubic
+
+            transform.position =
+                Mathf.Pow(1 - et, 2) * start + 2f * (1 - et) * et * mid + Mathf.Pow(et, 2) * target;
+            yield return null;
+        }
+
+        transform.position = target;
+        onComplete?.Invoke();
+        dropCoroutine = null;
+    }
+
     private void SetColour(Color colour)
     {
-        if (rend == null)
-            return;
-        // Works with standard materials — creates a material instance automatically
-        rend.material.color = colour;
+        if (rend != null)
+            rend.material.color = colour;
     }
 }

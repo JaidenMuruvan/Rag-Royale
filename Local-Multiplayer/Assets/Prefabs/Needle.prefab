@@ -164,7 +164,7 @@ MeshCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 5
@@ -185,6 +185,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NeedlePickup
   snapSpeed: 18
   holdOffset: {x: 0, y: 0, z: 0}
+  dropDuration: 0.35
 --- !u!54 &1708108401414221367
 Rigidbody:
   m_ObjectHideFlags: 0

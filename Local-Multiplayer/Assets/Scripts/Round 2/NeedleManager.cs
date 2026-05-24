@@ -1,16 +1,6 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-/// <summary>
-/// Core system for Round 2.
-/// Tracks the shared needle pile count and each player's stash count.
-/// Handles collection (hold near pile), deposit (hold near deposit zone),
-/// and triggers the killer shot when the pile drops to threshold.
-///
-/// STANDALONE TESTING: Works with no MatchData present.
-/// All starting values fall back to Inspector fields.
-/// </summary>
 public class NeedleManager : MonoBehaviour
 {
     [Header("Pile Settings")]
@@ -28,13 +18,7 @@ public class NeedleManager : MonoBehaviour
     private float collectHoldTime = 0.6f;
 
     [SerializeField]
-    private float collectRepeatInterval = 0.3f;
-
-    [SerializeField]
-    private float depositHoldTime = 0.5f;
-
-    [SerializeField]
-    private float depositRepeatInterval = 0.25f;
+    private float depositHoldTime = 0.4f;
 
     [Header("Zone References")]
     [SerializeField]
@@ -56,38 +40,40 @@ public class NeedleManager : MonoBehaviour
     [SerializeField]
     private NeedleSpawner needleSpawner;
 
-    // --- events ---
+    //  events
     public UnityEvent<int> OnPileCountChanged;
     public UnityEvent<int, int> OnPlayerNeedleCountChanged;
     public UnityEvent<int> OnKillerShotConditionMet;
     public UnityEvent<int> OnNeedleStolen;
     public UnityEvent<int> OnRoundWinner;
 
-    // --- public state ---
+    //  public state
     public int PileCount { get; private set; }
     public int P1NeedleCount { get; private set; }
     public int P2NeedleCount { get; private set; }
 
-    // --- private state ---
+    // private state
     private bool killerShotTriggered = false;
     private bool roundOver = false;
 
+    private bool p1CollectToggle = false;
+    private bool p2CollectToggle = false;
     private bool p1CollectHeld = false;
     private bool p2CollectHeld = false;
 
-    private float p1CollectHeldFor = 0f,
-        p1CollectRepeat = 0f;
-    private float p2CollectHeldFor = 0f,
-        p2CollectRepeat = 0f;
-    private float p1DepositHeldFor = 0f,
-        p1DepositRepeat = 0f;
-    private float p2DepositHeldFor = 0f,
-        p2DepositRepeat = 0f;
+    private bool p1Carrying = false;
+    private bool p2Carrying = false;
 
-    private bool p1InPile = false,
-        p2InPile = false;
-    private bool p1InDeposit = false,
-        p2InDeposit = false;
+    // Hold timers
+    private float p1CollectTimer = 0f;
+    private float p1DepositTimer = 0f;
+    private float p2CollectTimer = 0f;
+    private float p2DepositTimer = 0f;
+
+    private bool p1InPile = false;
+    private bool p2InPile = false;
+    private bool p1InDeposit = false;
+    private bool p2InDeposit = false;
 
     private MultiplayerPlayerController p1Controller;
     private MultiplayerPlayerController p2Controller;
@@ -98,8 +84,10 @@ public class NeedleManager : MonoBehaviour
         PileCount = startingPileCount;
         OnPileCountChanged?.Invoke(PileCount);
         WireZones();
-        WireTimer();
-        WireKillerShot();
+        if (roundTimer != null)
+            roundTimer.OnTimerExpired.AddListener(CompareAndDecideWinner);
+        if (killerShotManager != null)
+            killerShotManager.OnKillerShotWinner.AddListener(OnKillerShotWon);
     }
 
     private void Update()
@@ -112,29 +100,23 @@ public class NeedleManager : MonoBehaviour
         if (roundOver)
             return;
 
-        HandleCollection(
+        HandlePlayer(
             1,
             p1CollectHeld,
             p1InPile,
             p1InDeposit,
-            ref p1CollectHeldFor,
-            ref p1CollectRepeat,
-            ref p1DepositHeldFor,
-            ref p1DepositRepeat
+            p1Carrying,
+            ref p1CollectTimer,
+            ref p1DepositTimer
         );
-        HandleCollection(
+        HandlePlayer(
             2,
             p2CollectHeld,
             p2InPile,
             p2InDeposit,
-            ref p2CollectHeldFor,
-            ref p2CollectRepeat,
-            ref p2DepositHeldFor,
-            ref p2DepositRepeat
-        );
-
-        Debug.Log(
-            $"P1 held:{p1CollectHeld} inPile:{p1InPile}  P2 held:{p2CollectHeld} inPile:{p2InPile}"
+            p2Carrying,
+            ref p2CollectTimer,
+            ref p2DepositTimer
         );
     }
 
@@ -145,225 +127,154 @@ public class NeedleManager : MonoBehaviour
             killerShotManager.OnKillerShotWinner.RemoveListener(OnKillerShotWon);
     }
 
-    private void WireZones()
-    {
-        if (pileZone != null)
-        {
-            pileZone.OnPlayerEnter += OnEnterPile;
-            pileZone.OnPlayerExit += OnExitPile;
-        }
-        if (p1DepositZone != null)
-        {
-            p1DepositZone.OnPlayerEnter += OnEnterDeposit;
-            p1DepositZone.OnPlayerExit += OnExitDeposit;
-        }
-        if (p2DepositZone != null)
-        {
-            p2DepositZone.OnPlayerEnter += OnEnterDeposit;
-            p2DepositZone.OnPlayerExit += OnExitDeposit;
-        }
-    }
-
-    private void UnwireZones()
-    {
-        if (pileZone != null)
-        {
-            pileZone.OnPlayerEnter -= OnEnterPile;
-            pileZone.OnPlayerExit -= OnExitPile;
-        }
-        if (p1DepositZone != null)
-        {
-            p1DepositZone.OnPlayerEnter -= OnEnterDeposit;
-            p1DepositZone.OnPlayerExit -= OnExitDeposit;
-        }
-        if (p2DepositZone != null)
-        {
-            p2DepositZone.OnPlayerEnter -= OnEnterDeposit;
-            p2DepositZone.OnPlayerExit -= OnExitDeposit;
-        }
-    }
-
-    private void WireTimer()
-    {
-        if (roundTimer != null)
-            roundTimer.OnTimerExpired.AddListener(CompareAndDecideWinner);
-    }
-
-    private void WireKillerShot()
-    {
-        if (killerShotManager != null)
-            killerShotManager.OnKillerShotWinner.AddListener(OnKillerShotWon);
-    }
-
-    private void TryResolvePlayerReferences()
-    {
-        var controllers = FindObjectsByType<MultiplayerPlayerController>(FindObjectsSortMode.None);
-
-        foreach (var c in controllers)
-        {
-            Debug.Log($"  → name={c.gameObject.name} PlayerID={c.PlayerID}");
-            if (c.PlayerID == 1 && p1Controller == null)
-            {
-                p1Controller = c;
-                p1Controller.OnCollectPressed += () => SetCollectHeld(1, true);
-                p1Controller.OnCollectReleased += () => SetCollectHeld(1, false);
-            }
-            else if (c.PlayerID == 2 && p2Controller == null)
-            {
-                p2Controller = c;
-                p2Controller.OnCollectPressed += () => SetCollectHeld(2, true);
-                p2Controller.OnCollectReleased += () => SetCollectHeld(2, false);
-            }
-        }
-
-        // Only mark resolved once BOTH valid IDs are found
-        // If PlayerID is still 0 (PlayerInput not ready yet) we just try again next frame
-        if (p1Controller != null && p2Controller != null)
-            playersResolved = true;
-    }
-
-    public void SetCollectHeld(int playerID, bool held)
-    {
-        if (playerID == 1)
-            p1CollectHeld = held;
-        else
-            p2CollectHeld = held;
-
-        if (!held)
-        {
-            if (playerID == 1)
-            {
-                p1CollectHeldFor = 0f;
-                p1CollectRepeat = 0f;
-                p1DepositHeldFor = 0f;
-                p1DepositRepeat = 0f;
-            }
-            else
-            {
-                p2CollectHeldFor = 0f;
-                p2CollectRepeat = 0f;
-                p2DepositHeldFor = 0f;
-                p2DepositRepeat = 0f;
-            }
-        }
-    }
-
-    private void OnEnterPile(int id)
-    {
-        if (id == 1)
-            p1InPile = true;
-        else
-            p2InPile = true;
-    }
-
-    private void OnExitPile(int id)
-    {
-        if (id == 1)
-        {
-            p1InPile = false;
-            p1CollectHeldFor = 0f;
-            p1CollectRepeat = 0f;
-        }
-        else
-        {
-            p2InPile = false;
-            p2CollectHeldFor = 0f;
-            p2CollectRepeat = 0f;
-        }
-    }
-
-    private void OnEnterDeposit(int id)
-    {
-        if (id == 1)
-            p1InDeposit = true;
-        else
-            p2InDeposit = true;
-    }
-
-    private void OnExitDeposit(int id)
-    {
-        if (id == 1)
-        {
-            p1InDeposit = false;
-            p1DepositHeldFor = 0f;
-            p1DepositRepeat = 0f;
-        }
-        else
-        {
-            p2InDeposit = false;
-            p2DepositHeldFor = 0f;
-            p2DepositRepeat = 0f;
-        }
-    }
-
-    private void HandleCollection(
-        int playerID,
-        bool holdHeld,
+    private void HandlePlayer(
+        int id,
+        bool held,
         bool inPile,
         bool inDeposit,
-        ref float collectHeld,
-        ref float collectRepeat,
-        ref float depositHeld,
-        ref float depositRepeat
+        bool carrying,
+        ref float collectTimer,
+        ref float depositTimer
     )
     {
-        if (!holdHeld)
-            return;
-
-        if (inPile && PileCount > 0)
+        if (held)
         {
-            collectHeld += Time.deltaTime;
-            if (collectHeld >= collectHoldTime)
+            // Not carrying yet — try to collect from pile
+            if (!carrying && inPile && PileCount > 0)
             {
-                collectRepeat += Time.deltaTime;
-                if (collectRepeat >= collectRepeatInterval)
+                collectTimer += Time.deltaTime;
+                if (collectTimer >= collectHoldTime)
                 {
-                    collectRepeat = 0f;
-                    CollectNeedle(playerID);
+                    collectTimer = 0f;
+                    TryCollect(id);
+                }
+            }
+            // caarrrying and standing in deposit zone — deposit
+            else if (carrying && inDeposit)
+            {
+                depositTimer += Time.deltaTime;
+                if (depositTimer >= depositHoldTime)
+                {
+                    depositTimer = 0f;
+                    DoDeposit(id);
+
+                    SetToggle(id, false);
                 }
             }
         }
-
-        if (inDeposit)
+        else
         {
-            int count = playerID == 1 ? P1NeedleCount : P2NeedleCount;
-            if (count > 0)
+            collectTimer = 0f;
+            depositTimer = 0f;
+        }
+    }
+
+    public void ToggleCollect(int playerID)
+    {
+        bool currentToggle = playerID == 1 ? p1CollectToggle : p2CollectToggle;
+        bool carrying = playerID == 1 ? p1Carrying : p2Carrying;
+        bool inDeposit = playerID == 1 ? p1InDeposit : p2InDeposit;
+
+        if (!currentToggle)
+        {
+            SetToggle(playerID, true);
+        }
+        else
+        {
+            SetToggle(playerID, false);
+
+            if (carrying)
             {
-                depositHeld += Time.deltaTime;
-                if (depositHeld >= depositHoldTime)
-                {
-                    depositRepeat += Time.deltaTime;
-                    if (depositRepeat >= depositRepeatInterval)
-                    {
-                        depositRepeat = 0f;
-                        DepositNeedle(playerID);
-                    }
-                }
+                if (inDeposit)
+                    DoDeposit(playerID);
+                else
+                    ReturnToPile(playerID);
             }
         }
     }
 
-    private void CollectNeedle(int playerID)
+    private void SetToggle(int playerID, bool value)
     {
-        if (PileCount <= 0)
+        if (playerID == 1)
+        {
+            p1CollectToggle = value;
+            p1CollectHeld = value;
+        }
+        else
+        {
+            p2CollectToggle = value;
+            p2CollectHeld = value;
+        }
+    }
+
+    private void TryCollect(int playerID)
+    {
+        bool alreadyCarrying = playerID == 1 ? p1Carrying : p2Carrying;
+        if (alreadyCarrying)
             return;
+
+        bool success = needleSpawner == null || needleSpawner.CollectPhysical(playerID);
+        if (!success)
+            return;
+
         PileCount--;
         if (playerID == 1)
+        {
             P1NeedleCount++;
+            p1Carrying = true;
+        }
         else
+        {
             P2NeedleCount++;
+            p2Carrying = true;
+        }
 
-        needleSpawner?.CollectPhysical(playerID);
         OnPileCountChanged?.Invoke(PileCount);
         OnPlayerNeedleCountChanged?.Invoke(playerID, playerID == 1 ? P1NeedleCount : P2NeedleCount);
         CheckKillerShotCondition();
     }
 
-    private void DepositNeedle(int playerID)
+    private void DoDeposit(int playerID)
     {
+        bool carrying = playerID == 1 ? p1Carrying : p2Carrying;
+        if (!carrying)
+            return;
+
         needleSpawner?.DepositPhysical(playerID);
+
+        if (playerID == 1)
+            p1Carrying = false;
+        else
+            p2Carrying = false;
+
         OnPlayerNeedleCountChanged?.Invoke(playerID, playerID == 1 ? P1NeedleCount : P2NeedleCount);
     }
+
+    private void ReturnToPile(int playerID)
+    {
+        bool carrying = playerID == 1 ? p1Carrying : p2Carrying;
+        if (!carrying)
+            return;
+
+        needleSpawner?.ReturnHeldNeedleToPile(playerID);
+
+        PileCount++;
+        if (playerID == 1)
+        {
+            P1NeedleCount--;
+            p1Carrying = false;
+        }
+        else
+        {
+            P2NeedleCount--;
+            p2Carrying = false;
+        }
+
+        OnPileCountChanged?.Invoke(PileCount);
+        OnPlayerNeedleCountChanged?.Invoke(playerID, playerID == 1 ? P1NeedleCount : P2NeedleCount);
+    }
+
+    // Killer shot
 
     private void CheckKillerShotCondition()
     {
@@ -399,6 +310,86 @@ public class NeedleManager : MonoBehaviour
         SaveToMatchData();
     }
 
+    // Zone wiring
+
+    private void WireZones()
+    {
+        if (pileZone != null)
+        {
+            pileZone.OnPlayerEnter += id => SetInPile(id, true);
+            pileZone.OnPlayerExit += id => SetInPile(id, false);
+        }
+        if (p1DepositZone != null)
+        {
+            p1DepositZone.OnPlayerEnter += id => SetInDeposit(id, true);
+            p1DepositZone.OnPlayerExit += id => SetInDeposit(id, false);
+        }
+        if (p2DepositZone != null)
+        {
+            p2DepositZone.OnPlayerEnter += id => SetInDeposit(id, true);
+            p2DepositZone.OnPlayerExit += id => SetInDeposit(id, false);
+        }
+    }
+
+    private void UnwireZones()
+    {
+        if (pileZone != null)
+        {
+            pileZone.OnPlayerEnter -= id => SetInPile(id, true);
+            pileZone.OnPlayerExit -= id => SetInPile(id, false);
+        }
+        if (p1DepositZone != null)
+        {
+            p1DepositZone.OnPlayerEnter -= id => SetInDeposit(id, true);
+            p1DepositZone.OnPlayerExit -= id => SetInDeposit(id, false);
+        }
+        if (p2DepositZone != null)
+        {
+            p2DepositZone.OnPlayerEnter -= id => SetInDeposit(id, true);
+            p2DepositZone.OnPlayerExit -= id => SetInDeposit(id, false);
+        }
+    }
+
+    private void SetInPile(int id, bool v)
+    {
+        if (id == 1)
+            p1InPile = v;
+        else
+            p2InPile = v;
+    }
+
+    private void SetInDeposit(int id, bool v)
+    {
+        if (id == 1)
+            p1InDeposit = v;
+        else
+            p2InDeposit = v;
+    }
+
+    // Player reference resolution
+
+    private void TryResolvePlayerReferences()
+    {
+        var controllers = FindObjectsByType<MultiplayerPlayerController>(FindObjectsSortMode.None);
+        foreach (var c in controllers)
+        {
+            if (c.PlayerID == 1 && p1Controller == null)
+            {
+                p1Controller = c;
+                p1Controller.OnCollectPressed += () => ToggleCollect(1);
+            }
+            else if (c.PlayerID == 2 && p2Controller == null)
+            {
+                p2Controller = c;
+                p2Controller.OnCollectPressed += () => ToggleCollect(2);
+            }
+        }
+        if (p1Controller != null && p2Controller != null)
+            playersResolved = true;
+    }
+
+    // Winner + persistence
+
     public void CompareAndDecideWinner()
     {
         if (roundOver)
@@ -415,7 +406,7 @@ public class NeedleManager : MonoBehaviour
     private void SaveToMatchData()
     {
         if (MatchData.Instance == null)
-            return; // standalone — no-op, no crash
+            return;
         MatchData.Instance.P1NeedleCount = P1NeedleCount;
         MatchData.Instance.P2NeedleCount = P2NeedleCount;
     }

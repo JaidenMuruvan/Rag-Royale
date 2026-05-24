@@ -24,7 +24,7 @@ public class CountdownManager : MonoBehaviour
     [SerializeField]
     private float fightDuration = 0.9f;
 
-    // --- events ---
+    //  events
     public UnityEvent OnCountdownStarted;
     public UnityEvent<string> OnCountdownStep;
     public UnityEvent OnFightStarted;

@@ -50,7 +50,7 @@ public class MultiplayerPlayerController : MonoBehaviour
     [Header("Animations")]
     private Animator animator;
 
-    // --- private ---
+    //  private
     private CharacterController cc;
     private PlayerInput playerInput;
     private Vector2 moveInput;
@@ -62,23 +62,20 @@ public class MultiplayerPlayerController : MonoBehaviour
     private PlayerHealth playerHealth;
     private KnockdownManager knockdownManager;
 
-    // ---  ids ---
+    //  ids
     public int PlayerID { get; private set; }
     public AnimationManager animationScript;
 
+    //  events
     public event Action OnLightAttackEvent;
     public event Action OnHeavyAttackEvent;
     public event Action OnReactionEvent;
     public event Action OnGetUpEvent;
-
     public event Action OnCollectPressed;
-    public event Action OnCollectReleased;
 
     private bool movementEnabled = false;
     public bool BlockHeld { get; private set; }
 
-    // set at spawn based on which direction this player should naturally face
-    // p1 faces right (+1), p2 faces left (-1) this has been a bitch wtf
     private float facingDirection = 1f;
 
     private void Awake()
@@ -88,6 +85,11 @@ public class MultiplayerPlayerController : MonoBehaviour
         playerHealth = GetComponent<PlayerHealth>();
 
         knockdownManager = FindFirstObjectByType<KnockdownManager>();
+
+        // IMPORTANT: must be Invoke C# Events for OnCollect (and all other
+        // On___ methods) to be called automatically by PlayerInput.
+        // If this is wrong, change it in the PlayerInput component Inspector
+        // under "Behavior" → "Invoke C# Events".
     }
 
     private void OnEnable()
@@ -100,19 +102,11 @@ public class MultiplayerPlayerController : MonoBehaviour
     {
         MoveToSpawnPoint();
         SpawnCharacterVisual();
-
         animator = GetComponentInChildren<Animator>();
-        // animator.SetBool("Idle", true);
     }
 
     private void Update()
     {
-        // TEMP DEBUG —tryna check if chain logic works AND IT DOESS
-        if (PlayerID == 1 && Keyboard.current.eKey.wasPressedThisFrame)
-            OnCollectPressed?.Invoke();
-        if (PlayerID == 1 && Keyboard.current.eKey.wasReleasedThisFrame)
-            OnCollectReleased?.Invoke();
-
         CheckGround();
         ApplyGravity();
 
@@ -128,50 +122,32 @@ public class MultiplayerPlayerController : MonoBehaviour
 
         ApplyKnockbackDecay();
 
-        //Animation------------------------------------
-
+        //  animations
         if (knockdownManager != null && knockdownManager.CurrentState != KnockdownState.None)
-        {
             return;
-        }
 
         CombatSystem combat = GetComponent<CombatSystem>();
-
         if (combat != null && combat.IsAttacking)
-        {
-            return; // sooo attack animations wont override
-        }
-
-        if (playerHealth != null && playerHealth.IsReacting)
-        {
             return;
-        }
+        if (playerHealth != null && playerHealth.IsReacting)
+            return;
 
         if (!isGrounded)
-        {
             animationScript.PlayJump();
-        }
         else if (Mathf.Abs(moveInput.x) > 0.1f)
-        {
             animationScript.PlayRun();
-        }
         else
-        {
             animationScript.PlayIdle();
-        }
     }
 
-    // spawn stuffff
+    // Spawn
 
     public void MoveToSpawnPoint()
     {
         facingDirection = PlayerID == 1 ? 1f : -1f;
         Transform sp = PlayerID == 1 ? p1SpawnPoint : p2SpawnPoint;
-
         if (sp == null)
-        {
             return;
-        }
 
         cc.enabled = false;
         transform.position = sp.position;
@@ -182,17 +158,16 @@ public class MultiplayerPlayerController : MonoBehaviour
     private void SpawnCharacterVisual()
     {
         GameObject prefab = PlayerID == 1 ? p1CharacterPrefab : p2CharacterPrefab;
-
         if (prefab == null || characterVisualSlot == null)
             return;
 
-        GameObject Player = Instantiate(
+        GameObject go = Instantiate(
             prefab,
             characterVisualSlot.position,
             characterVisualSlot.rotation,
             characterVisualSlot
         );
-        animationScript = Player.GetComponent<AnimationManager>();
+        animationScript = go.GetComponent<AnimationManager>();
 
         if (PlayerID == 2)
         {
@@ -201,11 +176,7 @@ public class MultiplayerPlayerController : MonoBehaviour
         }
     }
 
-    ///input callbacks
-    public void OnMove(InputAction.CallbackContext ctx)
-    {
-        moveInput = ctx.ReadValue<Vector2>();
-    }
+    public void OnMove(InputAction.CallbackContext ctx) => moveInput = ctx.ReadValue<Vector2>();
 
     public void OnJump(InputAction.CallbackContext ctx)
     {
@@ -216,17 +187,13 @@ public class MultiplayerPlayerController : MonoBehaviour
     public void OnLightAttack(InputAction.CallbackContext ctx)
     {
         if (ctx.started)
-        {
             OnLightAttackEvent?.Invoke();
-        }
     }
 
     public void OnHeavyAttack(InputAction.CallbackContext ctx)
     {
         if (ctx.started)
-        {
             OnHeavyAttackEvent?.Invoke();
-        }
     }
 
     public void OnBlock(InputAction.CallbackContext ctx)
@@ -251,22 +218,11 @@ public class MultiplayerPlayerController : MonoBehaviour
 
     public void OnCollect(InputAction.CallbackContext ctx)
     {
-        Debug.Log($"[Controller P{PlayerID}] OnCollect fired — phase={ctx.phase}");
         if (ctx.started)
             OnCollectPressed?.Invoke();
-        if (ctx.canceled)
-            OnCollectReleased?.Invoke();
     }
 
-    // lets knockdownmanager grab the visual slot to rotate/tumble it
-    public Transform GetVisualSlot() => characterVisualSlot;
-
-    // voodoo physics layer reads these each frame
-    public Vector3 GetMoveDirection() => new Vector3(moveInput.x, 0f, 0f).normalized;
-
-    public bool IsGrounded => isGrounded;
-
-    // movementt
+    // Movement
 
     private void CheckGround()
     {
@@ -302,9 +258,9 @@ public class MultiplayerPlayerController : MonoBehaviour
             horizontal * moveSpeed + Vector3.up * verticalVelocity + knockbackVelocity;
         cc.Move(finalMove * Time.deltaTime);
 
+        // Face the direction of movement — DOESNT FLIPPIN WORK
         if (horizontal.x != 0f && characterVisualSlot != null)
         {
-            // face whichever direction the player is moving....same for both players
             characterVisualSlot.localScale = new Vector3(
                 Mathf.Sign(horizontal.x) * Mathf.Abs(characterVisualSlot.localScale.x),
                 characterVisualSlot.localScale.y,
@@ -313,18 +269,14 @@ public class MultiplayerPlayerController : MonoBehaviour
         }
     }
 
-    // knockback
+    // Knockback
 
-    public void ApplyKnockback(Vector3 force)
-    {
-        knockbackVelocity += force;
-    }
+    public void ApplyKnockback(Vector3 force) => knockbackVelocity += force;
 
     private void ApplyKnockbackDecay()
     {
         if (knockbackVelocity == Vector3.zero)
             return;
-
         knockbackVelocity = Vector3.MoveTowards(
             knockbackVelocity,
             Vector3.zero,
@@ -335,7 +287,6 @@ public class MultiplayerPlayerController : MonoBehaviour
     public void SetMovementEnabled(bool enabled)
     {
         movementEnabled = enabled;
-
         if (!enabled)
         {
             moveInput = Vector2.zero;
@@ -343,6 +294,14 @@ public class MultiplayerPlayerController : MonoBehaviour
             jumpQueued = false;
         }
     }
+
+    //  helpers
+
+    public Transform GetVisualSlot() => characterVisualSlot;
+
+    public Vector3 GetMoveDirection() => new Vector3(moveInput.x, 0f, 0f).normalized;
+
+    public bool IsGrounded => isGrounded;
 
     // gizmos
 

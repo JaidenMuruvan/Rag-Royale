@@ -13,7 +13,7 @@ public class RoundTimer : MonoBehaviour
     [SerializeField]
     private float duration = 60f; // seconds
 
-    // --- events ---
+    //  events
     public UnityEvent<float> OnTimerTick; // fires every frame with time remaining
     public UnityEvent OnTimerExpired; // fires once at zero
 

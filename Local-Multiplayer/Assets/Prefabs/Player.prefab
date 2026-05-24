@@ -326,7 +326,19 @@ MonoBehaviour:
     m_ActionId: b2ab07ff-dd9f-4907-974d-23a20ee19a42
     m_ActionName: 'UI/MenuOpenClose[/Keyboard/escape,/XInputControllerWindows/start]'
   - m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 3532998573399416451}
+        m_TargetAssemblyTypeName: MultiplayerPlayerController, Assembly-CSharp
+        m_MethodName: OnCollect
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
     m_ActionId: 96f58f0f-93b7-41b0-93ed-0b0d8418471b
     m_ActionName: 'PlayerControls/Collect[/Keyboard/e,/XInputControllerWindows/rightTrigger]'
   m_NeverAutoSwitchControlSchemes: 0
