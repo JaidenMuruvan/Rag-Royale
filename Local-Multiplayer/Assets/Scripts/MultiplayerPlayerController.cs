@@ -72,6 +72,7 @@ public class MultiplayerPlayerController : MonoBehaviour
     public event Action OnReactionEvent;
     public event Action OnGetUpEvent;
     public event Action OnCollectPressed;
+    public event Action OnThrowEvent;
 
     private bool movementEnabled = false;
     public bool BlockHeld { get; private set; }
@@ -220,6 +221,12 @@ public class MultiplayerPlayerController : MonoBehaviour
     {
         if (ctx.started)
             OnCollectPressed?.Invoke();
+    }
+
+    public void OnThrow(InputAction.CallbackContext ctx)
+    {
+        if (ctx.started)
+            OnThrowEvent?.Invoke();
     }
 
     // Movement
