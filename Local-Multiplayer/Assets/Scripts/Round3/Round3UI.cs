@@ -311,14 +311,14 @@ public class Round3UI : MonoBehaviour
             label.text = outOfAmmoText;
         StartCoroutine(ShowThenHide(banner, outOfAmmoDuration));
 
-        // Grey out the whole ammo panel to show it's spent
-        if (panel != null)
-        {
-            foreach (var img in panel.GetComponentsInChildren<Image>())
-                img.color = new Color(0.35f, 0.35f, 0.35f, 1f);
-            foreach (var txt in panel.GetComponentsInChildren<TextMeshProUGUI>())
-                txt.color = new Color(0.35f, 0.35f, 0.35f, 1f);
-        }
+        // grey out the whole ammo panel to show it's spent
+        // if (panel != null)
+        // {
+        //     foreach (var img in panel.GetComponentsInChildren<Image>())
+        //         img.color = new Color(0.35f, 0.35f, 0.35f, 1f);
+        //     foreach (var txt in panel.GetComponentsInChildren<TextMeshProUGUI>())
+        //         txt.color = new Color(0.35f, 0.35f, 0.35f, 1f);
+        // }
     }
 
     private IEnumerator ShowThenHide(GameObject go, float duration)
