@@ -3,355 +3,439 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Round 3 HUD. Displays:
+///   • Per-player ammo count + ammo pip row
+///   • HP bars (polled from PlayerHealth)
+///   • Power-throw "CHARGED!" indicator with pulse animation
+///   • Hit flash on the side of the player who was hit
+///   • Killer shot reaction-window countdown bar
+///
+/// Wired up entirely in Start() via events — no per-frame polling except for HP bars and
+/// the killer shot countdown (which only runs while the phase is active).
+/// </summary>
 public class Round3UI : MonoBehaviour
 {
-    [Header("P1 Ammo Panel")]
-    [SerializeField]
-    private Image p1NeedleIcon;
-
-    [SerializeField]
-    private TextMeshProUGUI p1AmmoCount;
-
-    [SerializeField]
-    private RectTransform p1Panel;
-
-    [Header("P2 Ammo Panel")]
-    [SerializeField]
-    private Image p2NeedleIcon;
-
-    [SerializeField]
-    private TextMeshProUGUI p2AmmoCount;
-
-    [SerializeField]
-    private RectTransform p2Panel;
-
-    [Header("Power Throw Banners")]
-    [SerializeField]
-    private GameObject p1PowerBanner;
-
-    [SerializeField]
-    private TextMeshProUGUI p1PowerLabel;
-
-    [SerializeField]
-    private GameObject p2PowerBanner;
-
-    [SerializeField]
-    private TextMeshProUGUI p2PowerLabel;
-
-    [SerializeField]
-    private string powerThrowText = "POWER THROW!";
-
-    [SerializeField]
-    private Color powerColorA = new Color(1f, 0.85f, 0f);
-
-    [SerializeField]
-    private Color powerColorB = new Color(1f, 0.2f, 0.1f);
-
-    [SerializeField]
-    private float powerPulseSpeed = 3f;
-
-    [Header("Timer")]
-    [SerializeField]
-    private TextMeshProUGUI timerText;
-
-    [SerializeField]
-    private Image timerFill;
-
-    [SerializeField]
-    private float timerDuration = 60f;
-
-    [SerializeField]
-    private Color timerNormal = Color.white;
-
-    [SerializeField]
-    private Color timerUrgent = new Color(1f, 0.2f, 0.1f);
-
-    [SerializeField]
-    private float urgentThreshold = 10f;
-
-    [Header("Hit Flash")]
-    [SerializeField]
-    private Image p1HitFlash;
-
-    [SerializeField]
-    private Image p2HitFlash;
-
-    [SerializeField]
-    private Image p1PowerHitFlash;
-
-    [SerializeField]
-    private Image p2PowerHitFlash;
-
-    [SerializeField]
-    private float normalFlashDuration = 0.15f;
-
-    [SerializeField]
-    private float powerFlashDuration = 0.35f;
-
-    [SerializeField]
-    private Color normalFlashColor = new Color(1f, 0.1f, 0.1f, 0.55f);
-
-    [SerializeField]
-    private Color powerFlashColor = new Color(1f, 0.35f, 0f, 0.85f);
-
-    [Header("Out of Ammo")]
-    [SerializeField]
-    private GameObject p1OutOfAmmoBanner;
-
-    [SerializeField]
-    private GameObject p2OutOfAmmoBanner;
-
-    [SerializeField]
-    private TextMeshProUGUI p1OutOfAmmoLabel;
-
-    [SerializeField]
-    private TextMeshProUGUI p2OutOfAmmoLabel;
-
-    [SerializeField]
-    private string outOfAmmoText = "OUT OF AMMO";
-
-    [SerializeField]
-    private float outOfAmmoDuration = 2.5f;
+    // ── Inspector ─────────────────────────────────────────────────────────────
 
     [Header("References")]
     [SerializeField]
     private ThrowSystem throwSystem;
 
     [SerializeField]
-    private RoundTimer roundTimer;
+    private KillerShotManager killerShotManager;
 
-    private Coroutine p1PowerPulse;
-    private Coroutine p2PowerPulse;
+    [Header("Ammo — P1")]
+    [SerializeField]
+    private TextMeshProUGUI p1AmmoLabel;
 
-    // Lifecycle
+    [SerializeField]
+    private Transform p1AmmoPipRoot; // parent of ammo pip images
 
-    private void OnEnable()
-    {
-        NeedleProjectile.OnProjectileHit += OnProjectileHit;
-    }
+    [SerializeField]
+    private GameObject ammoPipPrefab; // small filled circle prefab
 
-    private void OnDisable()
-    {
-        NeedleProjectile.OnProjectileHit -= OnProjectileHit;
-    }
+    [Header("Ammo — P2")]
+    [SerializeField]
+    private TextMeshProUGUI p2AmmoLabel;
+
+    [SerializeField]
+    private Transform p2AmmoPipRoot;
+
+    [Header("HP Bars")]
+    [SerializeField]
+    private Slider p1HpSlider;
+
+    [SerializeField]
+    private Slider p2HpSlider;
+
+    [SerializeField]
+    private Image p1HpFill;
+
+    [SerializeField]
+    private Image p2HpFill;
+
+    [SerializeField]
+    private Color hpHealthyColor = new Color(0.2f, 0.85f, 0.3f);
+
+    [SerializeField]
+    private Color hpDangerColor = new Color(0.95f, 0.2f, 0.15f);
+
+    [SerializeField, Range(0f, 1f)]
+    private float hpDangerThreshold = 0.35f;
+
+    [Header("Power Throw Indicators")]
+    [SerializeField]
+    private GameObject p1PowerThrowPanel;
+
+    [SerializeField]
+    private GameObject p2PowerThrowPanel;
+
+    [SerializeField]
+    private float powerPulseSpeed = 3f;
+
+    [Header("Hit Flash Overlays")]
+    [SerializeField]
+    private Image p1HitFlash; // left-side overlay (P1 took damage)
+
+    [SerializeField]
+    private Image p2HitFlash; // right-side overlay (P2 took damage)
+
+    [SerializeField]
+    private Color normalHitFlashColor = new Color(1f, 0.1f, 0.1f, 0.45f);
+
+    [SerializeField]
+    private Color powerHitFlashColor = new Color(1f, 0.5f, 0f, 0.70f);
+
+    [SerializeField]
+    private float hitFlashDuration = 0.25f;
+
+    [Header("Killer Shot HUD")]
+    [SerializeField]
+    private GameObject killerShotPanel;
+
+    [SerializeField]
+    private Slider killerShotTimerSlider;
+
+    [SerializeField]
+    private TextMeshProUGUI killerShotLabel;
+
+    [SerializeField]
+    private Image killerShotFill;
+
+    [SerializeField]
+    private Color killerShotReadyColor = new Color(1f, 0.85f, 0f);
+
+    [SerializeField]
+    private Color killerShotUrgentColor = new Color(1f, 0.15f, 0.1f);
+
+    [Header("Exhausted Banner")]
+    [SerializeField]
+    private GameObject p1ExhaustedBanner;
+
+    [SerializeField]
+    private GameObject p2ExhaustedBanner;
+
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    private PlayerHealth p1Health;
+    private PlayerHealth p2Health;
+    private bool playersResolved = false;
+
+    private Coroutine p1FlashCoroutine;
+    private Coroutine p2FlashCoroutine;
+    private bool killerShotPhaseActive = false;
+
+    // Pip pools
+    private Image[] p1Pips;
+    private Image[] p2Pips;
+    private int p1MaxAmmo;
+    private int p2MaxAmmo;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     private void Start()
     {
-        HideAll();
+        // Hide panels that only appear on demand
+        SetActive(killerShotPanel, false);
+        SetActive(p1PowerThrowPanel, false);
+        SetActive(p2PowerThrowPanel, false);
+        SetActive(p1ExhaustedBanner, false);
+        SetActive(p2ExhaustedBanner, false);
+        SetAlpha(p1HitFlash, 0f);
+        SetAlpha(p2HitFlash, 0f);
 
+        // Wire throw system events
         if (throwSystem != null)
         {
             throwSystem.OnAmmoChanged.AddListener(OnAmmoChanged);
-            throwSystem.OnPowerThrowReady.AddListener(ShowPowerBanner);
-            throwSystem.OnPowerThrowUsed.AddListener(HidePowerBanner);
-            throwSystem.OnNeedlesExhausted.AddListener(OnNeedlesExhausted);
-
-            UpdateAmmoDisplay(p1AmmoCount, p1Panel, throwSystem.P1Ammo);
-            UpdateAmmoDisplay(p2AmmoCount, p2Panel, throwSystem.P2Ammo);
+            throwSystem.OnPowerThrowReady.AddListener(OnPowerThrowReady);
+            throwSystem.OnPowerThrowUsed.AddListener(OnPowerThrowUsed);
+            throwSystem.OnNeedlesExhausted.AddListener(OnPlayerExhausted);
         }
 
-        if (roundTimer != null)
+        // Wire killer shot events
+        if (killerShotManager != null)
         {
-            roundTimer.OnTimerTick.AddListener(t => UpdateTimer(t));
-            roundTimer.OnTimerExpired.AddListener(() => UpdateTimer(0f));
+            killerShotManager.OnKillerShotPhaseStarted.AddListener(OnKillerShotStarted);
+            killerShotManager.OnKillerShotPhaseEnded.AddListener(OnKillerShotEnded);
+            killerShotManager.OnKillerShotWinner.AddListener(OnKillerShotWinner);
+            killerShotManager.OnEarlyPress.AddListener(OnEarlyPress);
         }
 
-        UpdateTimer(timerDuration);
+        // Subscribe to static hit event
+        NeedleProjectile.OnProjectileHit += OnProjectileHit;
+
+        // Initialise ammo display once ThrowSystem has loaded from MatchData
+        // (ThrowSystem.Start runs first if ordered correctly; safe either way)
+        StartCoroutine(InitAmmoNextFrame());
     }
 
-    private void HideAll()
+    private void OnDestroy()
     {
-        SetActive(p1PowerBanner, false);
-        SetActive(p2PowerBanner, false);
-        SetActive(p1OutOfAmmoBanner, false);
-        SetActive(p2OutOfAmmoBanner, false);
-        SetAlpha(p1HitFlash, 0f);
-        SetAlpha(p2HitFlash, 0f);
-        SetAlpha(p1PowerHitFlash, 0f);
-        SetAlpha(p2PowerHitFlash, 0f);
+        NeedleProjectile.OnProjectileHit -= OnProjectileHit;
+
+        if (throwSystem != null)
+        {
+            throwSystem.OnAmmoChanged.RemoveListener(OnAmmoChanged);
+            throwSystem.OnPowerThrowReady.RemoveListener(OnPowerThrowReady);
+            throwSystem.OnPowerThrowUsed.RemoveListener(OnPowerThrowUsed);
+            throwSystem.OnNeedlesExhausted.RemoveListener(OnPlayerExhausted);
+        }
+
+        if (killerShotManager != null)
+        {
+            killerShotManager.OnKillerShotPhaseStarted.RemoveListener(OnKillerShotStarted);
+            killerShotManager.OnKillerShotPhaseEnded.RemoveListener(OnKillerShotEnded);
+            killerShotManager.OnKillerShotWinner.RemoveListener(OnKillerShotWinner);
+            killerShotManager.OnEarlyPress.RemoveListener(OnEarlyPress);
+        }
     }
 
-    private void OnAmmoChanged(int playerID, int count)
+    private void Update()
     {
-        if (playerID == 1)
-            UpdateAmmoDisplay(p1AmmoCount, p1Panel, count);
-        else
-            UpdateAmmoDisplay(p2AmmoCount, p2Panel, count);
+        // Resolve player health references lazily
+        if (!playersResolved)
+            TryResolveHealth();
+
+        // Poll HP bars every frame (cheap slider update)
+        if (playersResolved)
+            UpdateHpBars();
+
+        // Pulse power throw indicators
+        PulsePowerIndicator(p1PowerThrowPanel);
+        PulsePowerIndicator(p2PowerThrowPanel);
+
+        // Update killer shot countdown slider
+        if (killerShotPhaseActive && killerShotManager != null && killerShotTimerSlider != null)
+        {
+            float t = Mathf.Clamp01(
+                killerShotManager.GetWindowTimeRemaining() / killerShotManager.GetWindowDuration()
+            );
+            killerShotTimerSlider.value = t;
+
+            if (killerShotFill != null)
+                killerShotFill.color = Color.Lerp(killerShotUrgentColor, killerShotReadyColor, t);
+        }
     }
 
-    private void UpdateAmmoDisplay(TextMeshProUGUI label, RectTransform panel, int count)
+    // ── Ammo ─────────────────────────────────────────────────────────────────
+
+    private IEnumerator InitAmmoNextFrame()
     {
+        yield return null; // wait one frame so ThrowSystem.Start() has run
+
+        if (throwSystem == null)
+            yield break;
+
+        p1MaxAmmo = throwSystem.P1Ammo;
+        p2MaxAmmo = throwSystem.P2Ammo;
+
+        BuildPips(p1AmmoPipRoot, p1MaxAmmo, out p1Pips);
+        BuildPips(p2AmmoPipRoot, p2MaxAmmo, out p2Pips);
+
+        RefreshAmmoLabel(1, throwSystem.P1Ammo);
+        RefreshAmmoLabel(2, throwSystem.P2Ammo);
+    }
+
+    private void BuildPips(Transform root, int count, out Image[] pips)
+    {
+        pips = new Image[0];
+        if (root == null || ammoPipPrefab == null)
+            return;
+
+        // Clear existing children
+        foreach (Transform child in root)
+            Destroy(child.gameObject);
+
+        pips = new Image[count];
+        for (int i = 0; i < count; i++)
+        {
+            GameObject go = Instantiate(ammoPipPrefab, root);
+            pips[i] = go.GetComponent<Image>();
+        }
+    }
+
+    private void OnAmmoChanged(int playerID, int newAmmo)
+    {
+        RefreshAmmoLabel(playerID, newAmmo);
+        RefreshPips(playerID, newAmmo);
+    }
+
+    private void RefreshAmmoLabel(int playerID, int ammo)
+    {
+        TextMeshProUGUI label = playerID == 1 ? p1AmmoLabel : p2AmmoLabel;
         if (label != null)
-            label.text = count.ToString();
-        if (panel != null)
-            StartCoroutine(PanelPop(panel));
+            label.text = ammo.ToString();
     }
 
-    private IEnumerator PanelPop(RectTransform panel)
+    private void RefreshPips(int playerID, int ammo)
     {
-        Vector3 orig = panel.localScale;
-        Vector3 big = orig * 1.18f;
-        float dur = 0.08f;
-        float t = 0f;
+        Image[] pips = playerID == 1 ? p1Pips : p2Pips;
+        int maxAmt = playerID == 1 ? p1MaxAmmo : p2MaxAmmo;
+        if (pips == null)
+            return;
 
-        while (t < dur)
+        for (int i = 0; i < pips.Length; i++)
         {
-            t += Time.deltaTime;
-            panel.localScale = Vector3.Lerp(orig, big, t / dur);
-            yield return null;
+            if (pips[i] == null)
+                continue;
+            // Pips filled from left; remaining pips dim/grey
+            pips[i].color = i < ammo ? Color.white : new Color(0.3f, 0.3f, 0.3f, 0.4f);
         }
-        t = 0f;
-        while (t < dur)
-        {
-            t += Time.deltaTime;
-            panel.localScale = Vector3.Lerp(big, orig, t / dur);
-            yield return null;
-        }
-        panel.localScale = orig;
     }
 
-    private void ShowPowerBanner(int playerID)
+    // ── HP Bars ───────────────────────────────────────────────────────────────
+
+    private void TryResolveHealth()
     {
-        if (playerID == 1)
+        var controllers = FindObjectsByType<MultiplayerPlayerController>(FindObjectsSortMode.None);
+        foreach (var c in controllers)
         {
-            SetActive(p1PowerBanner, true);
-            if (p1PowerLabel != null)
-                p1PowerLabel.text = powerThrowText;
-            if (p1PowerPulse != null)
-                StopCoroutine(p1PowerPulse);
-            p1PowerPulse = StartCoroutine(PulseBanner(p1PowerLabel));
+            if (c.PlayerID == 1 && p1Health == null)
+                p1Health = c.GetComponent<PlayerHealth>();
+            else if (c.PlayerID == 2 && p2Health == null)
+                p2Health = c.GetComponent<PlayerHealth>();
         }
-        else
-        {
-            SetActive(p2PowerBanner, true);
-            if (p2PowerLabel != null)
-                p2PowerLabel.text = powerThrowText;
-            if (p2PowerPulse != null)
-                StopCoroutine(p2PowerPulse);
-            p2PowerPulse = StartCoroutine(PulseBanner(p2PowerLabel));
-        }
+        if (p1Health != null && p2Health != null)
+            playersResolved = true;
     }
 
-    private void HidePowerBanner(int playerID)
+    private void UpdateHpBars()
     {
-        if (playerID == 1)
-        {
-            if (p1PowerPulse != null)
-            {
-                StopCoroutine(p1PowerPulse);
-                p1PowerPulse = null;
-            }
-            SetActive(p1PowerBanner, false);
-        }
-        else
-        {
-            if (p2PowerPulse != null)
-            {
-                StopCoroutine(p2PowerPulse);
-                p2PowerPulse = null;
-            }
-            SetActive(p2PowerBanner, false);
-        }
+        UpdateSingleHpBar(p1HpSlider, p1HpFill, p1Health);
+        UpdateSingleHpBar(p2HpSlider, p2HpFill, p2Health);
     }
 
-    private IEnumerator PulseBanner(TextMeshProUGUI label)
+    private void UpdateSingleHpBar(Slider slider, Image fill, PlayerHealth health)
     {
-        float t = 0f;
-        while (true)
-        {
-            t += Time.deltaTime * powerPulseSpeed;
-            if (label != null)
-                label.color = Color.Lerp(
-                    powerColorA,
-                    powerColorB,
-                    (Mathf.Sin(t * Mathf.PI * 2f) + 1f) * 0.5f
-                );
-            yield return null;
-        }
+        if (slider == null || health == null)
+            return;
+        float ratio = Mathf.Clamp01(health.CurrentHealth / health.MaxHealth);
+        slider.value = ratio;
+        if (fill != null)
+            fill.color = Color.Lerp(
+                hpDangerColor,
+                hpHealthyColor,
+                Mathf.InverseLerp(0f, hpDangerThreshold, ratio)
+                    * (ratio > hpDangerThreshold ? 1f : ratio / hpDangerThreshold)
+            );
     }
+
+    // ── Hit Flash ────────────────────────────────────────────────────────────
 
     private void OnProjectileHit(int hitPlayerID, bool isPower)
     {
-        Image flash =
-            hitPlayerID == 1
-                ? (isPower ? p1PowerHitFlash : p1HitFlash)
-                : (isPower ? p2PowerHitFlash : p2HitFlash);
+        Image overlay = hitPlayerID == 1 ? p1HitFlash : p2HitFlash;
+        Color color = isPower ? powerHitFlashColor : normalHitFlashColor;
+        ref Coroutine routine = ref (
+            hitPlayerID == 1 ? ref p1FlashCoroutine : ref p2FlashCoroutine
+        );
 
-        Color color = isPower ? powerFlashColor : normalFlashColor;
-        float duration = isPower ? powerFlashDuration : normalFlashDuration;
-
-        if (flash != null)
-            StartCoroutine(FlashImage(flash, color, duration));
+        if (overlay == null)
+            return;
+        if (routine != null)
+            StopCoroutine(routine);
+        routine = StartCoroutine(HitFlashRoutine(overlay, color));
     }
 
-    private IEnumerator FlashImage(Image img, Color color, float duration)
+    private IEnumerator HitFlashRoutine(Image overlay, Color color)
     {
-        Color c = color;
-        img.color = c;
+        overlay.color = color;
+        overlay.gameObject.SetActive(true);
 
-        float t = 0f;
-        while (t < duration)
+        float elapsed = 0f;
+        while (elapsed < hitFlashDuration)
         {
-            t += Time.deltaTime;
-            c.a = Mathf.Lerp(color.a, 0f, t / duration);
-            img.color = c;
+            elapsed += Time.unscaledDeltaTime;
+            float t = elapsed / hitFlashDuration;
+            Color c = color;
+            c.a = Mathf.Lerp(color.a, 0f, t * t);
+            overlay.color = c;
             yield return null;
         }
 
-        SetAlpha(img, 0f);
+        overlay.gameObject.SetActive(false);
     }
 
-    private void OnNeedlesExhausted(int playerID)
+    // ── Power Throw Indicator ─────────────────────────────────────────────────
+
+    private void OnPowerThrowReady(int playerID)
     {
-        GameObject banner = playerID == 1 ? p1OutOfAmmoBanner : p2OutOfAmmoBanner;
-        TextMeshProUGUI label = playerID == 1 ? p1OutOfAmmoLabel : p2OutOfAmmoLabel;
-        RectTransform panel = playerID == 1 ? p1Panel : p2Panel;
-
-        if (label != null)
-            label.text = outOfAmmoText;
-        StartCoroutine(ShowThenHide(banner, outOfAmmoDuration));
-
-        // grey out the whole ammo panel to show it's spent
-        // if (panel != null)
-        // {
-        //     foreach (var img in panel.GetComponentsInChildren<Image>())
-        //         img.color = new Color(0.35f, 0.35f, 0.35f, 1f);
-        //     foreach (var txt in panel.GetComponentsInChildren<TextMeshProUGUI>())
-        //         txt.color = new Color(0.35f, 0.35f, 0.35f, 1f);
-        // }
+        GameObject panel = playerID == 1 ? p1PowerThrowPanel : p2PowerThrowPanel;
+        SetActive(panel, true);
     }
 
-    private IEnumerator ShowThenHide(GameObject go, float duration)
+    private void OnPowerThrowUsed(int playerID)
     {
-        SetActive(go, true);
-        yield return new WaitForSeconds(duration);
-        SetActive(go, false);
+        GameObject panel = playerID == 1 ? p1PowerThrowPanel : p2PowerThrowPanel;
+        SetActive(panel, false);
     }
 
-    private void UpdateTimer(float remaining)
+    private void PulsePowerIndicator(GameObject panel)
     {
-        if (timerText == null)
+        if (panel == null || !panel.activeSelf)
             return;
-        int mins = Mathf.FloorToInt(remaining / 60f);
-        int secs = Mathf.FloorToInt(remaining % 60f);
-        timerText.text = $"{mins:0}:{secs:00}";
-        timerText.color = remaining <= urgentThreshold ? timerUrgent : timerNormal;
-        if (timerFill != null)
-            timerFill.fillAmount = Mathf.Clamp01(remaining / timerDuration);
+        float s = 1f + Mathf.Sin(Time.unscaledTime * powerPulseSpeed) * 0.08f;
+        panel.transform.localScale = Vector3.one * s;
     }
 
-    private void SetActive(GameObject go, bool state)
+    // ── Exhausted Banner ──────────────────────────────────────────────────────
+
+    private void OnPlayerExhausted(int playerID)
+    {
+        GameObject banner = playerID == 1 ? p1ExhaustedBanner : p2ExhaustedBanner;
+        SetActive(banner, true);
+    }
+
+    // ── Killer Shot HUD ───────────────────────────────────────────────────────
+
+    private void OnKillerShotStarted(int triggeringPlayerID)
+    {
+        killerShotPhaseActive = true;
+        SetActive(killerShotPanel, true);
+
+        if (killerShotTimerSlider != null)
+            killerShotTimerSlider.value = 1f;
+        if (killerShotLabel != null)
+        {
+            killerShotLabel.text =
+                triggeringPlayerID == 0 ? "KILLER SHOT!" : $"P{triggeringPlayerID} KILLER SHOT!";
+        }
+    }
+
+    private void OnKillerShotEnded()
+    {
+        killerShotPhaseActive = false;
+        SetActive(killerShotPanel, false);
+    }
+
+    private void OnKillerShotWinner(int winnerID)
+    {
+        // Panel is hidden via OnKillerShotEnded — just log for now.
+        Debug.Log($"[Round3UI] P{winnerID} won the killer shot reaction.");
+    }
+
+    private void OnEarlyPress(int playerID)
+    {
+        // Optional: flash the label red or show an "EARLY!" badge
+        Debug.Log($"[Round3UI] P{playerID} pressed EARLY.");
+    }
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
+
+    private static void SetActive(GameObject go, bool active)
     {
         if (go != null)
-            go.SetActive(state);
+            go.SetActive(active);
     }
 
-    private void SetAlpha(Image img, float a)
+    private static void SetAlpha(Image img, float alpha)
     {
         if (img == null)
             return;
         Color c = img.color;
-        c.a = a;
+        c.a = alpha;
         img.color = c;
     }
 }
