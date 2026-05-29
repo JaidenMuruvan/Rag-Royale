@@ -3,14 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-/// <summary>
-/// Round 3 throw system. Manages ammo loaded from Round 2, cooldowns, power throw state,
-/// and launches NeedleProjectiles. All damage and VFX values are serializable in the Inspector.
 /// </summary>
 public class ThrowSystem : MonoBehaviour
 {
-    // ── Inspector ─────────────────────────────────────────────────────────────
-
     [Header("Throw Settings")]
     [SerializeField]
     private float throwSpeed = 18f;
@@ -49,34 +44,28 @@ public class ThrowSystem : MonoBehaviour
     [SerializeField]
     private KillerShotManager killerShotManager;
 
-    // ── Events ────────────────────────────────────────────────────────────────
-
     /// <summary>Fired whenever a player's ammo changes. (playerID, newAmmo)</summary>
     public UnityEvent<int, int> OnAmmoChanged;
 
-    /// <summary>Fired when a player's ammo hits zero.</summary>
+    /// <summary> when a player's ammo hits zero.</summary>
     public UnityEvent<int> OnNeedlesExhausted;
 
-    /// <summary>Fired once both players are out of ammo.</summary>
+    /// <summary> once both players are out of ammo.</summary>
     public UnityEvent OnBothExhausted;
 
-    /// <summary>Fired when the Killer Shot grants a power throw. (playerID)</summary>
+    /// <summary> when the Killer Shot grants a power throw. (playerID)</summary>
     public UnityEvent<int> OnPowerThrowReady;
 
-    /// <summary>Fired immediately before the power throw projectile launches. (playerID)</summary>
+    /// <summary>done immediately before the power throw projectile launches. (playerID)</summary>
     public UnityEvent<int> OnPowerThrowUsed;
 
     /// <summary>Fired on every throw. (playerID, isPower)</summary>
     public UnityEvent<int, bool> OnThrowFired;
 
-    // ── Public State ──────────────────────────────────────────────────────────
-
     public int P1Ammo { get; private set; }
     public int P2Ammo { get; private set; }
     public bool P1PowerThrow { get; private set; }
     public bool P2PowerThrow { get; private set; }
-
-    // ── Private ───────────────────────────────────────────────────────────────
 
     private bool p1Exhausted = false;
     private bool p2Exhausted = false;
@@ -93,8 +82,6 @@ public class ThrowSystem : MonoBehaviour
     private PlayerHealth p2Health;
 
     private bool playersResolved = false;
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     private void Start()
     {
@@ -123,14 +110,11 @@ public class ThrowSystem : MonoBehaviour
         if (killerShotManager != null)
             killerShotManager.OnKillerShotWinner.RemoveListener(OnKillerShotWon);
 
-        // Unsubscribe safely
         if (p1Controller != null)
             p1Controller.OnThrowEvent -= OnP1Throw;
         if (p2Controller != null)
             p2Controller.OnThrowEvent -= OnP2Throw;
     }
-
-    // ── Ammo Initialisation ───────────────────────────────────────────────────
 
     private void LoadAmmoFromMatchData()
     {
@@ -150,8 +134,6 @@ public class ThrowSystem : MonoBehaviour
         CheckExhaustion(1);
         CheckExhaustion(2);
     }
-
-    // ── Player Resolution ─────────────────────────────────────────────────────
 
     private void TryResolvePlayers()
     {
@@ -182,8 +164,6 @@ public class ThrowSystem : MonoBehaviour
 
     private void OnP2Throw() => TryThrow(2);
 
-    // ── Throw Logic ───────────────────────────────────────────────────────────
-
     public void TryThrow(int playerID)
     {
         if (!playersResolved)
@@ -196,7 +176,6 @@ public class ThrowSystem : MonoBehaviour
         if (exhausted || cooldown > 0f)
             return;
 
-        // Power throw: free (no ammo cost)
         if (!isPower)
         {
             int ammo = playerID == 1 ? P1Ammo : P2Ammo;
@@ -209,13 +188,11 @@ public class ThrowSystem : MonoBehaviour
                 P2Ammo--;
         }
 
-        // Apply cooldown
         if (playerID == 1)
             p1Cooldown = throwCooldown;
         else
             p2Cooldown = throwCooldown;
 
-        // Consume power throw flag
         if (isPower)
         {
             if (playerID == 1)
@@ -232,8 +209,6 @@ public class ThrowSystem : MonoBehaviour
         CheckExhaustion(playerID);
     }
 
-    // ── Projectile Spawn ──────────────────────────────────────────────────────
-
     private void LaunchProjectile(int playerID, bool isPower)
     {
         Transform launchPoint = playerID == 1 ? p1LaunchPoint : p2LaunchPoint;
@@ -246,7 +221,7 @@ public class ThrowSystem : MonoBehaviour
             return;
         }
 
-        // Direction toward opponent (X-axis only — side-scroller)
+        //  toward opponent (X-axis only )
         Vector3 direction = Vector3.right * (playerID == 1 ? 1f : -1f);
         if (opponent != null)
         {
@@ -271,8 +246,6 @@ public class ThrowSystem : MonoBehaviour
                 targetHealth
             );
     }
-
-    // ── Exhaustion ────────────────────────────────────────────────────────────
 
     private void CheckExhaustion(int playerID)
     {
@@ -300,8 +273,6 @@ public class ThrowSystem : MonoBehaviour
         }
     }
 
-    // ── Killer Shot Reward ────────────────────────────────────────────────────
-
     private void OnKillerShotWon(int winnerID)
     {
         if (winnerID == 1)
@@ -311,8 +282,6 @@ public class ThrowSystem : MonoBehaviour
         OnPowerThrowReady?.Invoke(winnerID);
         Debug.Log($"[ThrowSystem] P{winnerID} earned POWER THROW.");
     }
-
-    // ── Utilities ─────────────────────────────────────────────────────────────
 
     private Transform FindChildByName(Transform root, string targetName)
     {
@@ -330,11 +299,9 @@ public class ThrowSystem : MonoBehaviour
         return null;
     }
 
-    // ── Public Accessors ──────────────────────────────────────────────────────
-
-    /// <summary>Current damage value for normal throws (Inspector-editable).</summary>
+    /// <summary>Current damage value for normal throws.</summary>
     public float NormalDamage => normalDamage;
 
-    /// <summary>Current damage value for power throws (Inspector-editable).</summary>
+    /// <summary>Current damage value for power </summary>
     public float PowerDamage => powerDamage;
 }

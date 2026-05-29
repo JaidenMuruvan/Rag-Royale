@@ -3,21 +3,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Round 3 HUD. Displays:
-///   • Per-player ammo count + ammo pip row
-///   • HP bars (polled from PlayerHealth)
-///   • Power-throw "CHARGED!" indicator with pulse animation
-///   • Hit flash on the side of the player who was hit
-///   • Killer shot reaction-window countdown bar
-///
-/// Wired up entirely in Start() via events — no per-frame polling except for HP bars and
-/// the killer shot countdown (which only runs while the phase is active).
-/// </summary>
 public class Round3UI : MonoBehaviour
 {
-    // ── Inspector ─────────────────────────────────────────────────────────────
-
     [Header("References")]
     [SerializeField]
     private ThrowSystem throwSystem;
@@ -30,10 +17,10 @@ public class Round3UI : MonoBehaviour
     private TextMeshProUGUI p1AmmoLabel;
 
     [SerializeField]
-    private Transform p1AmmoPipRoot; // parent of ammo pip images
+    private Transform p1AmmoPipRoot;
 
     [SerializeField]
-    private GameObject ammoPipPrefab; // small filled circle prefab
+    private GameObject ammoPipPrefab;
 
     [Header("Ammo — P2")]
     [SerializeField]
@@ -116,8 +103,6 @@ public class Round3UI : MonoBehaviour
     [SerializeField]
     private GameObject p2ExhaustedBanner;
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
     private PlayerHealth p1Health;
     private PlayerHealth p2Health;
     private bool playersResolved = false;
@@ -126,17 +111,13 @@ public class Round3UI : MonoBehaviour
     private Coroutine p2FlashCoroutine;
     private bool killerShotPhaseActive = false;
 
-    // Pip pools
     private Image[] p1Pips;
     private Image[] p2Pips;
     private int p1MaxAmmo;
     private int p2MaxAmmo;
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
-
     private void Start()
     {
-        // Hide panels that only appear on demand
         SetActive(killerShotPanel, false);
         SetActive(p1PowerThrowPanel, false);
         SetActive(p2PowerThrowPanel, false);
@@ -145,7 +126,6 @@ public class Round3UI : MonoBehaviour
         SetAlpha(p1HitFlash, 0f);
         SetAlpha(p2HitFlash, 0f);
 
-        // Wire throw system events
         if (throwSystem != null)
         {
             throwSystem.OnAmmoChanged.AddListener(OnAmmoChanged);
@@ -154,7 +134,6 @@ public class Round3UI : MonoBehaviour
             throwSystem.OnNeedlesExhausted.AddListener(OnPlayerExhausted);
         }
 
-        // Wire killer shot events
         if (killerShotManager != null)
         {
             killerShotManager.OnKillerShotPhaseStarted.AddListener(OnKillerShotStarted);
@@ -163,11 +142,8 @@ public class Round3UI : MonoBehaviour
             killerShotManager.OnEarlyPress.AddListener(OnEarlyPress);
         }
 
-        // Subscribe to static hit event
         NeedleProjectile.OnProjectileHit += OnProjectileHit;
 
-        // Initialise ammo display once ThrowSystem has loaded from MatchData
-        // (ThrowSystem.Start runs first if ordered correctly; safe either way)
         StartCoroutine(InitAmmoNextFrame());
     }
 
@@ -194,19 +170,15 @@ public class Round3UI : MonoBehaviour
 
     private void Update()
     {
-        // Resolve player health references lazily
         if (!playersResolved)
             TryResolveHealth();
 
-        // Poll HP bars every frame (cheap slider update)
         if (playersResolved)
             UpdateHpBars();
 
-        // Pulse power throw indicators
         PulsePowerIndicator(p1PowerThrowPanel);
         PulsePowerIndicator(p2PowerThrowPanel);
 
-        // Update killer shot countdown slider
         if (killerShotPhaseActive && killerShotManager != null && killerShotTimerSlider != null)
         {
             float t = Mathf.Clamp01(
@@ -219,11 +191,9 @@ public class Round3UI : MonoBehaviour
         }
     }
 
-    // ── Ammo ─────────────────────────────────────────────────────────────────
-
     private IEnumerator InitAmmoNextFrame()
     {
-        yield return null; // wait one frame so ThrowSystem.Start() has run
+        yield return null;
 
         if (throwSystem == null)
             yield break;
@@ -244,7 +214,6 @@ public class Round3UI : MonoBehaviour
         if (root == null || ammoPipPrefab == null)
             return;
 
-        // Clear existing children
         foreach (Transform child in root)
             Destroy(child.gameObject);
 
@@ -285,8 +254,6 @@ public class Round3UI : MonoBehaviour
         }
     }
 
-    // ── HP Bars ───────────────────────────────────────────────────────────────
-
     private void TryResolveHealth()
     {
         var controllers = FindObjectsByType<MultiplayerPlayerController>(FindObjectsSortMode.None);
@@ -322,8 +289,6 @@ public class Round3UI : MonoBehaviour
             );
     }
 
-    // ── Hit Flash ────────────────────────────────────────────────────────────
-
     private void OnProjectileHit(int hitPlayerID, bool isPower)
     {
         Image overlay = hitPlayerID == 1 ? p1HitFlash : p2HitFlash;
@@ -358,8 +323,6 @@ public class Round3UI : MonoBehaviour
         overlay.gameObject.SetActive(false);
     }
 
-    // ── Power Throw Indicator ─────────────────────────────────────────────────
-
     private void OnPowerThrowReady(int playerID)
     {
         GameObject panel = playerID == 1 ? p1PowerThrowPanel : p2PowerThrowPanel;
@@ -380,15 +343,11 @@ public class Round3UI : MonoBehaviour
         panel.transform.localScale = Vector3.one * s;
     }
 
-    // ── Exhausted Banner ──────────────────────────────────────────────────────
-
     private void OnPlayerExhausted(int playerID)
     {
         GameObject banner = playerID == 1 ? p1ExhaustedBanner : p2ExhaustedBanner;
         SetActive(banner, true);
     }
-
-    // ── Killer Shot HUD ───────────────────────────────────────────────────────
 
     private void OnKillerShotStarted(int triggeringPlayerID)
     {
@@ -412,17 +371,13 @@ public class Round3UI : MonoBehaviour
 
     private void OnKillerShotWinner(int winnerID)
     {
-        // Panel is hidden via OnKillerShotEnded — just log for now.
         Debug.Log($"[Round3UI] P{winnerID} won the killer shot reaction.");
     }
 
     private void OnEarlyPress(int playerID)
     {
-        // Optional: flash the label red or show an "EARLY!" badge
         Debug.Log($"[Round3UI] P{playerID} pressed EARLY.");
     }
-
-    // ── Utilities ─────────────────────────────────────────────────────────────
 
     private static void SetActive(GameObject go, bool active)
     {

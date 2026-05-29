@@ -1,19 +1,8 @@
 using UnityEngine;
 
-/// <summary>
-/// Manages Round 3: needle-throwing combat. Each player carries their Round 2 needle count
-/// as ammo. Round ends when both are exhausted or the timer runs out; highest HP wins.
-///
-/// Killer Shot: PlayerHealth already fires OnKillerShotTriggered when HP falls below its own
-/// serializable killerShotThreshold field — we just subscribe to that event here.
-/// The threshold itself lives in PlayerHealth's Inspector (per player), which keeps it
-/// consistent with Round 1 behaviour and avoids duplicating the value.
-/// </summary>
 [RequireComponent(typeof(RoundManager))]
 public class Round3Manager : MonoBehaviour
 {
-    // ── Inspector ─────────────────────────────────────────────────────────────
-
     [Header("References")]
     [SerializeField]
     private ThrowSystem throwSystem;
@@ -31,8 +20,6 @@ public class Round3Manager : MonoBehaviour
     [SerializeField]
     private Round3VFX vfx;
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
     private RoundManager roundManager;
     private PlayerHealth p1Health;
     private PlayerHealth p2Health;
@@ -41,8 +28,6 @@ public class Round3Manager : MonoBehaviour
     private bool p2KillerShotFired = false;
     private bool roundOver = false;
     private bool playersResolved = false;
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     private void Awake()
     {
@@ -75,21 +60,17 @@ public class Round3Manager : MonoBehaviour
 
     private void Update()
     {
-        // Resolve player health lazily — subscribes to OnKillerShotTriggered once found.
         if (!playersResolved && !roundOver)
             TryResolvePlayerHealth();
     }
 
     private void OnDestroy()
     {
-        // Unsubscribe from PlayerHealth events to avoid stale callbacks.
         if (p1Health != null)
             p1Health.OnKillerShotTriggered.RemoveListener(OnP1KillerShotTriggered);
         if (p2Health != null)
             p2Health.OnKillerShotTriggered.RemoveListener(OnP2KillerShotTriggered);
     }
-
-    // ── Player Resolution ─────────────────────────────────────────────────────
 
     private void TryResolvePlayerHealth()
     {
@@ -114,12 +95,6 @@ public class Round3Manager : MonoBehaviour
             playersResolved = true;
     }
 
-    // ── Killer Shot — triggered by PlayerHealth ───────────────────────────────
-
-    /// <summary>
-    /// PlayerHealth raises OnKillerShotTriggered once when HP crosses its own threshold.
-    /// We guard with a flag so a second damage tick can't re-fire the phase.
-    /// </summary>
     private void OnP1KillerShotTriggered()
     {
         if (p1KillerShotFired || roundOver)
@@ -136,16 +111,10 @@ public class Round3Manager : MonoBehaviour
         killerShotManager?.ActivateKillerShotPhase_Round3(2);
     }
 
-    // ── Countdown / Timer ─────────────────────────────────────────────────────
-
     private void OnCountdownFinished() => roundTimer?.StartTimer();
-
-    // ── Killer Shot → VFX ────────────────────────────────────────────────────
 
     private void OnKillerShotPhaseStarted(int triggeringPlayerID) =>
         vfx?.PlayKillerShotWarning(triggeringPlayerID);
-
-    // ── Throw Events → VFX ───────────────────────────────────────────────────
 
     private void OnPowerThrowReady(int playerID)
     {
@@ -163,8 +132,6 @@ public class Round3Manager : MonoBehaviour
             vfx?.PlayNormalThrowLaunch(playerID);
     }
 
-    // ── Winner Resolution ─────────────────────────────────────────────────────
-
     public void DecideWinner()
     {
         if (roundOver)
@@ -173,7 +140,6 @@ public class Round3Manager : MonoBehaviour
 
         roundTimer?.StopTimer();
 
-        // If health refs aren't available yet, fall back gracefully.
         if (p1Health == null || p2Health == null)
         {
             Debug.LogWarning("[Round3Manager] Could not find both PlayerHealth components.");
@@ -199,8 +165,6 @@ public class Round3Manager : MonoBehaviour
         Debug.Log($"[Round3Manager] Round over — P{winner} wins. HP: P1={p1Hp:F1} P2={p2Hp:F1}");
         roundManager.Debug_ForceEndRound(winner);
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void DisableCombat()
     {

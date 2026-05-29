@@ -5,7 +5,6 @@ using UnityEngine.UI;
 
 public class Round3VFX : MonoBehaviour
 {
-    // ── Particles & UI ───────────────────────────────────────────────
     [Header("Power Throw — Readiness Particles")]
     [SerializeField]
     private ParticleSystem p1PowerReadyParticles;
@@ -53,7 +52,6 @@ public class Round3VFX : MonoBehaviour
     [SerializeField]
     private Color roundEndFlashColor = new Color(1f, 0.85f, 0.1f, 0.45f);
 
-    // ── Audio Clips ──────────────────────────────────────────────────
     [Header("Audio Clips")]
     [SerializeField]
     private AudioClip powerThrowReadyClip;
@@ -67,10 +65,8 @@ public class Round3VFX : MonoBehaviour
     [SerializeField]
     private AudioClip roundEndFanfareClip;
 
-    // ── Private ──────────────────────────────────────────────────────
     private Coroutine overlayCoroutine;
 
-    // ── Power Throw Ready ────────────────────────────────────────────
     public void PlayPowerThrowReady(int playerID)
     {
         ParticleSystem ps = playerID == 1 ? p1PowerReadyParticles : p2PowerReadyParticles;
@@ -86,7 +82,6 @@ public class Round3VFX : MonoBehaviour
         ps?.Stop();
     }
 
-    // ── Throw Launch ─────────────────────────────────────────────────
     public void PlayPowerThrowLaunch(int playerID)
     {
         ParticleSystem ps = playerID == 1 ? p1PowerLaunchBurst : p2PowerLaunchBurst;
@@ -102,7 +97,6 @@ public class Round3VFX : MonoBehaviour
         ps?.Play();
     }
 
-    // ── Killer Shot Warning ──────────────────────────────────────────
     public void PlayKillerShotWarning(int triggeringPlayerID)
     {
         killerShotBurstParticles?.Play();
@@ -110,7 +104,6 @@ public class Round3VFX : MonoBehaviour
         FlashOverlay(killerShotWarningOverlay, killerShotFlashColor, killerShotFlashDuration);
     }
 
-    // ── Round End Fanfare ────────────────────────────────────────────
     public void PlayRoundEndFanfare(int winnerID)
     {
         winnerConfetti?.Play();
@@ -118,7 +111,6 @@ public class Round3VFX : MonoBehaviour
         FlashOverlay(roundEndFlashOverlay, roundEndFlashColor, roundEndFlashDuration);
     }
 
-    // ── Internal Helpers ─────────────────────────────────────────────
     private void FlashOverlay(Image overlay, Color color, float duration)
     {
         if (overlay == null)

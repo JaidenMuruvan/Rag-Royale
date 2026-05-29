@@ -14,7 +14,7 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class KillerShotManager : MonoBehaviour
 {
-    // ── Inspector ─────────────────────────────────────────────────────────────
+    // ── Inspector
 
     [Header("Killer Shot Settings")]
     [SerializeField]
@@ -91,7 +91,7 @@ public class KillerShotManager : MonoBehaviour
 
     public bool IsActive => killerShotActive;
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    // ── Lifecycle
 
     private void Update()
     {
