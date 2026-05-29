@@ -4,15 +4,18 @@ using UnityEngine;
 
 /// <summary>
 /// Fired by ThrowSystem. Travels in a straight line on the X axis.
-/// On hit: deals damage, spawns hit VFX, camera shake, hitstop.
-/// Fires static OnProjectileHit so Round3UI can show hit flash without needing a direct reference.
+/// On hit: deals damage (PlayerHealth owns the react animation via ReactRoutine),
+/// applies knockback to the opponent, spawns VFX, triggers camera shake + hitstop.
+/// Static OnProjectileHit lets Round3UI react without inspector wiring.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(Collider))]
 public class NeedleProjectile : MonoBehaviour
 {
-    // Static event — Round3UI subscribes to this, no inspector wiring needed
+    // ── Static event ──────────────────────────────────────────────────────────
     public static event Action<int, bool> OnProjectileHit; // (hitPlayerID, isPower)
+
+    // ── Inspector ─────────────────────────────────────────────────────────────
 
     [Header("Travel")]
     [SerializeField]
@@ -64,7 +67,20 @@ public class NeedleProjectile : MonoBehaviour
     [SerializeField]
     private float powerHitstopDuration = 0.14f;
 
-    // Runtime — set by ThrowSystem.Initialise()
+    [Header("Knockback on Hit")]
+    [Tooltip("Horizontal force applied to the opponent on a normal hit.")]
+    [SerializeField]
+    private float normalKnockbackForce = 5f;
+
+    [Tooltip("Horizontal force applied to the opponent on a power hit.")]
+    [SerializeField]
+    private float powerKnockbackForce = 12f;
+
+    [Tooltip("Upward component mixed into the knockback direction (0 = pure horizontal).")]
+    [SerializeField]
+    private float knockbackUpAngle = 0.15f;
+
+    // ── Runtime ───────────────────────────────────────────────────────────────
 
     private int ownerID;
     private int targetPlayerID;
@@ -72,9 +88,14 @@ public class NeedleProjectile : MonoBehaviour
     private float speed;
     private float damage;
     private bool isPower;
+
     private PlayerHealth targetHealth;
+    private MultiplayerPlayerController targetController;
+
     private Rigidbody rb;
     private bool hasHit = false;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     private void Awake()
     {
@@ -88,6 +109,8 @@ public class NeedleProjectile : MonoBehaviour
             | RigidbodyConstraints.FreezePositionY
             | RigidbodyConstraints.FreezePositionZ;
     }
+
+    // ── Initialise (called by ThrowSystem) ────────────────────────────────────
 
     public void Initialise(
         int ownerPlayerID,
@@ -106,13 +129,23 @@ public class NeedleProjectile : MonoBehaviour
         isPower = powerThrow;
         targetHealth = target;
 
-        rb.linearVelocity = direction * speed;
+        // Cache the controller now — no Find needed at impact time.
+        if (target != null)
+        {
+            targetController = target.GetComponent<MultiplayerPlayerController>();
 
+            if (targetController == null)
+                Debug.LogWarning(
+                    "[NeedleProjectile] Target has no MultiplayerPlayerController — knockback will be skipped."
+                );
+        }
+
+        rb.linearVelocity = direction * speed;
         SetupTrail();
         StartCoroutine(LifetimeTimeout());
     }
 
-    // Trail
+    // ── Trail ─────────────────────────────────────────────────────────────────
 
     private void SetupTrail()
     {
@@ -125,7 +158,7 @@ public class NeedleProjectile : MonoBehaviour
         trailRenderer.time = isPower ? 0.28f : 0.12f;
     }
 
-    // Collision
+    // ── Collision ─────────────────────────────────────────────────────────────
 
     private void OnTriggerEnter(Collider other)
     {
@@ -138,40 +171,77 @@ public class NeedleProjectile : MonoBehaviour
         {
             hasHit = true;
             HitPlayer();
+            return;
         }
-        else if (health == null)
+
+        if (health == null)
         {
+            // Ignore the owner's own colliders
+            MultiplayerPlayerController ctrl =
+                other.GetComponentInParent<MultiplayerPlayerController>();
+            if (ctrl != null && ctrl.PlayerID == ownerID)
+                return;
+
             hasHit = true;
             HitEnvironment();
         }
-        // Ignore owner collider
     }
 
-    // Hit
+    // ── Hit ───────────────────────────────────────────────────────────────────
 
     private void HitPlayer()
     {
+        // 1. Damage — PlayerHealth.TakeDamage internally starts ReactRoutine,
+        //    which calls animationScript.PlayTakeDamage() and sets IsReacting.
+        //    We do NOT call PlayTakeDamage() here: ReactRoutine owns that state
+        //    and will restore idle after reactDuration. Calling it a second time
+        //    here is harmless for the bool but redundant, and would fight the
+        //    restore timing during hitstop (WaitForSeconds uses scaled time).
         targetHealth?.TakeDamage(damage);
 
-        // Notify UI (static — no inspector wiring needed)
-        OnProjectileHit?.Invoke(targetPlayerID, isPower);
+        if (targetHealth == null)
+            Debug.LogWarning("[NeedleProjectile] targetHealth is null at hit time.");
 
-        // VFX
-        GameObject vfxPrefab = isPower ? powerHitVFXPrefab : normalHitVFXPrefab;
-        if (vfxPrefab != null)
-            Destroy(Instantiate(vfxPrefab, transform.position, Quaternion.identity), 3f);
-
-        // Feedback
-        if (isPower)
+        // 2. Knockback — push opponent in throw direction with a slight upward pop.
+        //    AnimationManager.PlayTakeDamage() will have already fired above via
+        //    ReactRoutine. The knockback is purely physics.
+        if (targetController != null)
         {
-            CameraShake.Instance?.Shake(powerShakeDuration, powerShakeMagnitude);
-            HitStop.Instance?.Freeze(powerHitstopDuration);
+            float force = isPower ? powerKnockbackForce : normalKnockbackForce;
+            Vector3 knockDir = (direction + Vector3.up * knockbackUpAngle).normalized;
+            targetController.ApplyKnockback(knockDir * force);
         }
         else
         {
-            CameraShake.Instance?.Shake(normalShakeDuration, normalShakeMagnitude);
-            HitStop.Instance?.Freeze(normalHitstopDuration);
+            Debug.Log(
+                "[NeedleProjectile] No MultiplayerPlayerController on target — knockback skipped."
+            );
         }
+
+        // 3. VFX at impact point
+        GameObject vfxPrefab = isPower ? powerHitVFXPrefab : normalHitVFXPrefab;
+        if (vfxPrefab != null)
+            Destroy(Instantiate(vfxPrefab, transform.position, Quaternion.identity), 3f);
+        else
+            Debug.Log(
+                $"[NeedleProjectile] No {(isPower ? "power" : "normal")} hit VFX prefab assigned."
+            );
+
+        // 4. Screen feedback — hitstop before shake so the shake begins
+        //    after time resumes (feels snappier than both at once)
+        if (isPower)
+        {
+            HitStop.Instance?.Freeze(powerHitstopDuration);
+            CameraShake.Instance?.Shake(powerShakeDuration, powerShakeMagnitude);
+        }
+        else
+        {
+            HitStop.Instance?.Freeze(normalHitstopDuration);
+            CameraShake.Instance?.Shake(normalShakeDuration, normalShakeMagnitude);
+        }
+
+        // 5. Notify UI
+        OnProjectileHit?.Invoke(targetPlayerID, isPower);
 
         Despawn();
     }
@@ -183,10 +253,13 @@ public class NeedleProjectile : MonoBehaviour
                 Instantiate(missVFXPrefab, transform.position, Quaternion.LookRotation(-direction)),
                 2f
             );
+        else
+            Debug.Log("[NeedleProjectile] No miss VFX prefab assigned.");
+
         Despawn();
     }
 
-    // Despawn
+    // ── Despawn ───────────────────────────────────────────────────────────────
 
     private IEnumerator LifetimeTimeout()
     {
