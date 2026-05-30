@@ -392,13 +392,18 @@ MonoBehaviour:
   - {fileID: 1043798440}
   - {fileID: 535174543}
   - {fileID: 1753158553}
-  p1Colour: {r: 0.2, g: 0.5, b: 1, a: 1}
-  p2Colour: {r: 1, g: 0.3, b: 0.2, a: 1}
+  p1Colour: {r: 1, g: 0.21730058, b: 0.19999999, a: 1}
+  p2Colour: {r: 0.20000002, g: 0.5019608, b: 1, a: 1}
   pileColour: {r: 0.85, g: 0.85, b: 0.85, a: 1}
   p1DepositPilePoint: {fileID: 240393724}
   p2DepositPilePoint: {fileID: 208188913}
+  p1DepositNeedleSlots: []
+  p2DepositNeedleSlots: []
   holdPointName: NeedleHoldPoint
   needleManager: {fileID: 1857864875}
+  collectPunchScale: 1.35
+  depositPunchScale: 1.4
+  punchDuration: 0.12
 --- !u!4 &104041670
 Transform:
   m_ObjectHideFlags: 0
