@@ -3,7 +3,8 @@ using UnityEngine;
 
 public class AnimationManager : MonoBehaviour
 {
-    [SerializeField] private List<string> AnimationBools;
+    [SerializeField]
+    private List<string> AnimationBools;
     public Animator animator;
 
     void Start()
@@ -24,17 +25,25 @@ public class AnimationManager : MonoBehaviour
     }
 
     public void PlayJump() => SetOnlyBool(0);
+
     public void PlayIdle() => SetOnlyBool(1);
+
     public void PlayRun() => SetOnlyBool(2);
+
     public void PlayKnockDown() => SetOnlyBool(3);
 
     public void PlayLightAttack() => SetOnlyBool(4);
+
     public void PlayGetUp() => SetOnlyBool(5);
+
     public void PlayTakeDamage() => SetOnlyBool(6);
+
     public void PlayGrab() => SetOnlyBool(7);
+
     public void PlayHeavyAttack() => SetOnlyBool(8);
 
     // kept for any external callers that used the old name
     public void PlayKnockdown() => PlayKnockDown();
+
     public void PlayGetup() => PlayGetUp();
 }

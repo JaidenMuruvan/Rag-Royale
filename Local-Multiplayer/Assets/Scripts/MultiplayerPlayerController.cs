@@ -72,6 +72,7 @@ public class MultiplayerPlayerController : MonoBehaviour
     public event Action OnReactionEvent;
     public event Action OnGetUpEvent;
     public event Action OnCollectPressed;
+    public event Action OnThrowEvent;
 
     private bool movementEnabled = false;
     public bool BlockHeld { get; private set; }
@@ -94,12 +95,51 @@ public class MultiplayerPlayerController : MonoBehaviour
 
     private void OnEnable()
     {
-        if (playerInput != null)
+        // playerInput.playerIndex may still be -1 here when spawned via
+        // PlayerInputManager — the index is committed later in the same frame.
+        if (playerInput != null && playerInput.playerIndex >= 0)
             PlayerID = playerInput.playerIndex + 1;
     }
 
     private void Start()
     {
+        // Defer spawn by one frame so PlayerInputManager has committed the
+        // final playerIndex. Without this, the second player instantiated in
+        // the same frame reads index -1 → PlayerID 0 and both players
+        // teleport to P1's spawn point.
+        StartCoroutine(InitialiseAfterInputReady());
+    }
+
+    private System.Collections.IEnumerator InitialiseAfterInputReady()
+    {
+        // Wait until PlayerInput has a valid (>=0) index; cap at 10 frames.
+        int safety = 0;
+        while ((playerInput == null || playerInput.playerIndex < 0) && safety < 10)
+        {
+            yield return null;
+            safety++;
+        }
+
+        if (playerInput != null && playerInput.playerIndex >= 0)
+            PlayerID = playerInput.playerIndex + 1;
+
+        // Fallback: if still unresolved, infer ID from other controllers.
+        if (PlayerID == 0)
+        {
+            var all = FindObjectsByType<MultiplayerPlayerController>(FindObjectsSortMode.None);
+            bool p1Taken = false;
+            foreach (var c in all)
+                if (c != this && c.PlayerID == 1)
+                {
+                    p1Taken = true;
+                    break;
+                }
+            PlayerID = p1Taken ? 2 : 1;
+            Debug.LogWarning(
+                $"[MultiplayerPlayerController] playerIndex unresolved — assigned PlayerID={PlayerID} via fallback."
+            );
+        }
+
         MoveToSpawnPoint();
         SpawnCharacterVisual();
         animator = GetComponentInChildren<Animator>();
@@ -220,6 +260,12 @@ public class MultiplayerPlayerController : MonoBehaviour
     {
         if (ctx.started)
             OnCollectPressed?.Invoke();
+    }
+
+    public void OnThrow(InputAction.CallbackContext ctx)
+    {
+        if (ctx.started)
+            OnThrowEvent?.Invoke();
     }
 
     // Movement

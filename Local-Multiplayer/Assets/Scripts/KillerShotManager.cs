@@ -5,13 +5,17 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// Manages the killer shot reaction window for all rounds.
-/// Round 1: winner → KnockdownManager.StartKnockdown (consequence handled here)
-/// Round 2: winner → OnKillerShotWinner only (NeedleManager handles the steal)
-/// Round 3: winner → sets power-throw flag (ThrowSystem handles it)
-/// Set CurrentRound before the round starts, or wire it to RoundManager.
+///
+/// Round 1: winner → KnockdownManager.StartKnockdown
+/// Round 2: winner → OnKillerShotWinner (NeedleManager handles the steal)
+/// Round 3: winner → OnKillerShotWinner (ThrowSystem grants a power throw)
+///
+/// Set CurrentRound before the round starts via SetRound(), or wire it in the Inspector.
 /// </summary>
 public class KillerShotManager : MonoBehaviour
 {
+    // ── Inspector
+
     [Header("Killer Shot Settings")]
     [SerializeField]
     private float minReactionWindow = 3f;
@@ -36,13 +40,21 @@ public class KillerShotManager : MonoBehaviour
     [SerializeField]
     private int currentRound = 1;
 
+    // ── Events ────
+
+    /// <summary>Fired when the phase begins. Arg = triggeringPlayerID (0 = both / round 2).</summary>
     public UnityEvent<int> OnKillerShotPhaseStarted;
     public UnityEvent OnKillerShotPhaseEnded;
-    public UnityEvent<int> OnKillerShotWinner; // (winnerID) — all rounds
+
+    /// <summary>Fired when a player wins the reaction window (all rounds).</summary>
+    public UnityEvent<int> OnKillerShotWinner;
+
     public UnityEvent OnKillerShotExpired;
     public UnityEvent<int> OnEarlyPress;
     public UnityEvent<int> OnPerfectPress;
     public UnityEvent<int> OnTooLate;
+
+    // ── Private state ─────────────────────────────────────────────────────────
 
     private PlayerHealth p1Health;
     private PlayerHealth p2Health;
@@ -69,7 +81,7 @@ public class KillerShotManager : MonoBehaviour
     private Gamepad p1Gamepad;
     private Gamepad p2Gamepad;
 
-    //  getters (for UI)
+    // ── Public getters (for UI) ───────────────────────────────────────────────
 
     public float GetWindowTimeRemaining() => windowTimer;
 
@@ -79,7 +91,7 @@ public class KillerShotManager : MonoBehaviour
 
     public bool IsActive => killerShotActive;
 
-    // Lifecycle
+    // ── Lifecycle
 
     private void Update()
     {
@@ -120,7 +132,7 @@ public class KillerShotManager : MonoBehaviour
             p2ReactedInWindow = true;
 
         if (p1Valid && p2Valid)
-            ResolveKillerShot(1); // simultaneous → P1 wins (first-input model)
+            ResolveKillerShot(1); // simultaneous → P1 wins
         else if (p1Valid)
         {
             CheckPerfect(1);
@@ -142,12 +154,12 @@ public class KillerShotManager : MonoBehaviour
         StopHaptics();
     }
 
-    // Round context
+    // ── Round context ─────────────────────────────────────────────────────────
 
-    /// <summary>Call from RoundManager or set in Inspector to tell KillerShotManager which round it is.</summary>
+    /// <summary>Call from a RoundManager (or set in Inspector) before the round starts.</summary>
     public void SetRound(int round) => currentRound = round;
 
-    // Activation — Round 1 & 3 path (triggered by PlayerHealth threshold)
+    // ── Activation — internal (HP threshold path, Rounds 1 & 3) ──────────────
 
     private void ActivateKillerShotPhase(int playerID)
     {
@@ -156,37 +168,57 @@ public class KillerShotManager : MonoBehaviour
         BeginPhase(playerID);
     }
 
-    // Activation — Round 2 path (triggered by NeedleManager pile threshold)
+    // ── Activation — Round 2 (NeedleManager pile threshold) ──────────────────
 
-    /// <summary>
-    /// Called by NeedleManager when the shared pile drops below threshold.
-    /// Bypasses the HP threshold check — killer shot fires based on needle count.
-    /// </summary>
+    /// <summary>Called by NeedleManager when the pile drops below its threshold.</summary>
     public void ActivateKillerShotForRound2()
     {
         if (killerShotActive)
             return;
-        BeginPhase(triggeringPlayerID: 0); // 0 = both players prompted
+        BeginPhase(0); // 0 = both players prompted
     }
 
-    // Shared begin logic
+    // ── Activation — Round 3 (HP threshold, called by Round3Manager) ─────────
 
-    private void BeginPhase(int triggeringPlayerID)
+    /// <summary>
+    /// Called by Round3Manager when a player's HP drops to or below the configured threshold.
+    /// Identical to the internal HP path but exposed publicly so Round3Manager owns the
+    /// threshold check (keeping the serializable value there, not here).
+    /// </summary>
+    public void ActivateKillerShotPhase_Round3(int triggeringPlayer)
+    {
+        if (killerShotActive)
+            return;
+        if (currentRound != 3)
+        {
+            Debug.LogWarning(
+                "[KillerShotManager] ActivateKillerShotPhase_Round3 called but currentRound != 3."
+            );
+            return;
+        }
+        BeginPhase(triggeringPlayer);
+    }
+
+    // ── Shared begin logic ────────────────────────────────────────────────────
+
+    private void BeginPhase(int playerID)
     {
         killerShotActive = true;
         reactionWindowOpen = false;
-        this.triggeringPlayerID = triggeringPlayerID;
+        triggeringPlayerID = playerID;
+
         p1PressedEarly = false;
         p2PressedEarly = false;
         p1ReactionPressed = false;
         p2ReactionPressed = false;
         p1ReactedInWindow = false;
         p2ReactedInWindow = false;
+
         reactionWindowDuration = Random.Range(minReactionWindow, maxReactionWindow);
         windowTimer = reactionWindowDuration;
 
-        // Disable combat/collection depending on round — handled externally via events.
-        // KillerShotPhaseStarted listeners (CountdownManager, NeedleManager, etc.) do this.
+        // In Round 3 there is no melee combat to disable, but the CombatSystem references
+        // will simply be null so the null-conditional calls are safe.
         p1Combat?.SetCombatEnabled(false);
         p2Combat?.SetCombatEnabled(false);
 
@@ -196,11 +228,11 @@ public class KillerShotManager : MonoBehaviour
         reactionCoroutine = StartCoroutine(ReactionWindowRoutine());
     }
 
-    // Reaction window
+    // ── Reaction window ───────────────────────────────────────────────────────
 
     private IEnumerator ReactionWindowRoutine()
     {
-        yield return new WaitForSeconds(0.5f); // grace period before window opens
+        yield return new WaitForSeconds(0.5f); // short grace period before window opens
 
         reactionWindowOpen = true;
 
@@ -235,7 +267,7 @@ public class KillerShotManager : MonoBehaviour
             OnPerfectPress?.Invoke(playerID);
     }
 
-    // Resolution — round-branching consequence
+    // ── Resolution — round-branching consequence ──────────────────────────────
 
     private void ResolveKillerShot(int winnerID)
     {
@@ -252,22 +284,19 @@ public class KillerShotManager : MonoBehaviour
             reactionCoroutine = null;
         }
 
-        // Round-specific consequences
         switch (currentRound)
         {
             case 1:
-                // Knockdown: downed player loses the button-mash race; arm may be detached.
                 int loserID = winnerID == 1 ? 2 : 1;
                 knockdownManager?.StartKnockdown(loserID);
                 break;
 
             case 2:
                 // NeedleManager subscribes to OnKillerShotWinner and handles the steal.
-                // No knockdown here.
                 break;
 
             case 3:
-                // ThrowSystem subscribes to OnKillerShotWinner and sets the power-throw flag.
+                // ThrowSystem subscribes to OnKillerShotWinner and grants a power throw.
                 break;
         }
 
@@ -278,19 +307,21 @@ public class KillerShotManager : MonoBehaviour
         Debug.Log($"[KillerShot] Round {currentRound} — P{winnerID} wins reaction window.");
     }
 
-    // Combat re-enable
+    // ── Combat re-enable ──────────────────────────────────────────────────────
 
     private void ReenableCombat()
     {
-        // Round 2 has no combat — only re-enable in rounds with it.
-        if (currentRound == 1 || currentRound == 3)
+        // Only re-enable melee combat in rounds that use it.
+        // Round 3 uses ThrowSystem — no melee — but the null-safe calls are harmless.
+        if (currentRound == 1)
         {
             p1Combat?.SetCombatEnabled(true);
             p2Combat?.SetCombatEnabled(true);
         }
+        // Round 2 & 3: external systems manage their own enable state.
     }
 
-    // Public reset (called between rounds if same scene — not needed with scene-per-round)
+    // ── Public reset ──────────────────────────────────────────────────────────
 
     public void ResetKillerShot()
     {
@@ -309,7 +340,7 @@ public class KillerShotManager : MonoBehaviour
         OnKillerShotPhaseEnded?.Invoke();
     }
 
-    // Player reference resolution
+    // ── Player reference resolution ───────────────────────────────────────────
 
     private void TryResolvePlayerReferences()
     {
@@ -336,8 +367,11 @@ public class KillerShotManager : MonoBehaviour
         if (p1Controller == null || p2Controller == null)
             return;
 
-        // Only subscribe to HP threshold in rounds that use it
-        if (currentRound == 1 || currentRound == 3)
+        // Rounds 1 & 3 use the HP threshold path baked into PlayerHealth.
+        // Round 3 Manager ALSO calls ActivateKillerShotPhase_Round3() independently,
+        // so we only subscribe PlayerHealth.OnKillerShotTriggered for Round 1 here to
+        // avoid double-firing in Round 3.
+        if (currentRound == 1)
         {
             if (p1Health != null)
                 p1Health.OnKillerShotTriggered.AddListener(() => ActivateKillerShotPhase(1));
@@ -345,6 +379,7 @@ public class KillerShotManager : MonoBehaviour
                 p2Health.OnKillerShotTriggered.AddListener(() => ActivateKillerShotPhase(2));
         }
         // Round 2: NeedleManager calls ActivateKillerShotForRound2() directly.
+        // Round 3: Round3Manager calls ActivateKillerShotPhase_Round3() directly.
 
         p1Controller.OnReactionEvent += OnP1Reaction;
         p2Controller.OnReactionEvent += OnP2Reaction;
@@ -357,7 +392,7 @@ public class KillerShotManager : MonoBehaviour
 
     private void OnP2Reaction() => p2ReactionPressed = true;
 
-    // Haptics
+    // ── Haptics ───
 
     private void StartHaptics()
     {
