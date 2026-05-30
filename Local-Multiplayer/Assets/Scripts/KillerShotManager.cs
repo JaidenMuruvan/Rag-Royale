@@ -40,7 +40,7 @@ public class KillerShotManager : MonoBehaviour
     [SerializeField]
     private int currentRound = 1;
 
-    // ── Events ────────────────────────────────────────────────────────────────
+    // ── Events ────
 
     /// <summary>Fired when the phase begins. Arg = triggeringPlayerID (0 = both / round 2).</summary>
     public UnityEvent<int> OnKillerShotPhaseStarted;
@@ -392,7 +392,7 @@ public class KillerShotManager : MonoBehaviour
 
     private void OnP2Reaction() => p2ReactionPressed = true;
 
-    // ── Haptics ───────────────────────────────────────────────────────────────
+    // ── Haptics ───
 
     private void StartHaptics()
     {

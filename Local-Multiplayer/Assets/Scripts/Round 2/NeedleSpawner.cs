@@ -4,31 +4,35 @@ using UnityEngine;
 
 public class NeedleSpawner : MonoBehaviour
 {
-    [Header(" Needles")]
+    [Header("Pile Needles ")]
     [SerializeField]
     private List<NeedlePickup> needles = new List<NeedlePickup>();
 
     [Header("Player Colours")]
     [SerializeField]
-    private Color p1Colour = new Color(0.2f, 0.5f, 1f, 1f);
+    private Color p1Colour = new Color(1f, 0.20f, 0.18f, 1f);
 
     [SerializeField]
-    private Color p2Colour = new Color(1f, 0.3f, 0.2f, 1f);
+    private Color p2Colour = new Color(0.18f, 0.45f, 1f, 1f);
 
     [SerializeField]
     private Color pileColour = new Color(0.85f, 0.85f, 0.85f, 1f);
 
-    [Header("Deposit Pile pos")]
-    [Tooltip(
-        "World position needles arc toward when P1 deposits. "
-            + "Point this at a visible stash location on P1's side."
-    )]
+    [Header("Deposit Pile Positions")]
     [SerializeField]
     private Transform p1DepositPilePoint;
 
-    [Tooltip("Same for P2.")]
     [SerializeField]
     private Transform p2DepositPilePoint;
+
+    [Header("Deposit Zone Needle Displays (pincushion)")]
+    [Tooltip("Pre-placed needle GameObjects in P1's deposit zone, all initially inactive.")]
+    [SerializeField]
+    private List<GameObject> p1DepositNeedleSlots = new List<GameObject>();
+
+    [Tooltip("Same for P2.")]
+    [SerializeField]
+    private List<GameObject> p2DepositNeedleSlots = new List<GameObject>();
 
     [Header("Hold Point Name")]
     [SerializeField]
@@ -38,6 +42,16 @@ public class NeedleSpawner : MonoBehaviour
     [SerializeField]
     private NeedleManager needleManager;
 
+    [Header("Juice")]
+    [SerializeField]
+    private float collectPunchScale = 1.35f;
+
+    [SerializeField]
+    private float depositPunchScale = 1.4f;
+
+    [SerializeField]
+    private float punchDuration = 0.12f;
+
     private Queue<NeedlePickup> pileQueue = new Queue<NeedlePickup>();
 
     private NeedlePickup p1HeldNeedle;
@@ -46,6 +60,9 @@ public class NeedleSpawner : MonoBehaviour
     private List<NeedlePickup> p1Stash = new List<NeedlePickup>();
     private List<NeedlePickup> p2Stash = new List<NeedlePickup>();
 
+    private int p1DepositSlotIndex = 0;
+    private int p2DepositSlotIndex = 0;
+
     private Transform p1HoldPoint;
     private Transform p2HoldPoint;
     private bool holdPointsResolved = false;
@@ -53,6 +70,7 @@ public class NeedleSpawner : MonoBehaviour
     private void Start()
     {
         InitialisePile();
+        HideAllDepositSlots();
 
         if (needleManager != null)
             needleManager.OnNeedleStolen.AddListener(OnNeedleStolen);
@@ -70,8 +88,6 @@ public class NeedleSpawner : MonoBehaviour
             needleManager.OnNeedleStolen.RemoveListener(OnNeedleStolen);
     }
 
-    // Pile init
-
     private void InitialisePile()
     {
         pileQueue.Clear();
@@ -84,7 +100,17 @@ public class NeedleSpawner : MonoBehaviour
         }
     }
 
-    // Hold point
+    private void HideAllDepositSlots()
+    {
+        foreach (var go in p1DepositNeedleSlots)
+            if (go != null)
+                go.SetActive(false);
+        foreach (var go in p2DepositNeedleSlots)
+            if (go != null)
+                go.SetActive(false);
+        p1DepositSlotIndex = 0;
+        p2DepositSlotIndex = 0;
+    }
 
     private void TryResolveHoldPoints()
     {
@@ -100,39 +126,30 @@ public class NeedleSpawner : MonoBehaviour
             holdPointsResolved = true;
     }
 
-    private Transform FindChildByName(Transform root, string name)
+    private Transform FindChildByName(Transform root, string childName)
     {
-        var queue = new Queue<Transform>();
-        queue.Enqueue(root);
-        while (queue.Count > 0)
+        var q = new Queue<Transform>();
+        q.Enqueue(root);
+        while (q.Count > 0)
         {
-            Transform t = queue.Dequeue();
-            if (t.name == name)
+            Transform t = q.Dequeue();
+            if (t.name == childName)
                 return t;
             foreach (Transform child in t)
-                queue.Enqueue(child);
+                q.Enqueue(child);
         }
-        Debug.LogWarning($"[NeedleSpawner] '{name}' not found under {root.name}.");
+        // Debug.LogWarning($"[NeedleSpawner] '{childName}' not found under {root.name}.");
         return null;
     }
 
-    // Called by NeedleManager
-
-    /// <summary>
-    /// Try to give the player a physical needle from the pile.
-    /// will b false if the player already holds one or the pile is empty.
-    /// </summary>
     public bool CollectPhysical(int playerID)
     {
         if (!holdPointsResolved)
             return false;
-
-        // One needle at a time — block if already holding
         if (playerID == 1 && p1HeldNeedle != null)
             return false;
         if (playerID == 2 && p2HeldNeedle != null)
             return false;
-
         if (pileQueue.Count == 0)
             return false;
 
@@ -142,13 +159,18 @@ public class NeedleSpawner : MonoBehaviour
             return false;
 
         NeedlePickup needle = pileQueue.Dequeue();
-
         if (playerID == 1)
             p1HeldNeedle = needle;
         else
             p2HeldNeedle = needle;
 
         needle.Collect(holdPoint, playerID, playerColour);
+
+        StartCoroutine(PunchScale(needle.transform, collectPunchScale, punchDuration));
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.armDetach, 0.7f, 0.08f);
+
         return true;
     }
 
@@ -162,6 +184,20 @@ public class NeedleSpawner : MonoBehaviour
         Vector3 target = pilePoint != null ? pilePoint.position : needle.transform.position;
 
         needle.Deposit(target);
+
+        ActivateNextDepositSlot(playerID);
+
+        GameObject slot = GetLastActivatedSlot(playerID);
+        if (slot != null)
+            StartCoroutine(PunchScale(slot.transform, depositPunchScale, punchDuration));
+
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.lightHit, 0.6f, 0.06f);
+            int count = (playerID == 1 ? p1Stash.Count : p2Stash.Count) + 1;
+            if (count % 5 == 0)
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.roundWinChant, 0.4f);
+        }
 
         if (playerID == 1)
         {
@@ -182,7 +218,10 @@ public class NeedleSpawner : MonoBehaviour
             return;
 
         needle.ReturnToPile(pileColour);
-        pileQueue.Enqueue(needle); // back in circulation
+        pileQueue.Enqueue(needle);
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.menuBack, 0.5f, 0.05f);
 
         if (playerID == 1)
             p1HeldNeedle = null;
@@ -193,7 +232,39 @@ public class NeedleSpawner : MonoBehaviour
     public bool PlayerHoldsNeedle(int playerID) =>
         playerID == 1 ? p1HeldNeedle != null : p2HeldNeedle != null;
 
-    // Killer shot steal
+    private void ActivateNextDepositSlot(int playerID)
+    {
+        if (playerID == 1)
+        {
+            if (p1DepositSlotIndex < p1DepositNeedleSlots.Count)
+            {
+                p1DepositNeedleSlots[p1DepositSlotIndex]?.SetActive(true);
+                p1DepositSlotIndex++;
+            }
+        }
+        else
+        {
+            if (p2DepositSlotIndex < p2DepositNeedleSlots.Count)
+            {
+                p2DepositNeedleSlots[p2DepositSlotIndex]?.SetActive(true);
+                p2DepositSlotIndex++;
+            }
+        }
+    }
+
+    private GameObject GetLastActivatedSlot(int playerID)
+    {
+        if (playerID == 1)
+        {
+            int idx = p1DepositSlotIndex - 1;
+            return idx >= 0 && idx < p1DepositNeedleSlots.Count ? p1DepositNeedleSlots[idx] : null;
+        }
+        else
+        {
+            int idx = p2DepositSlotIndex - 1;
+            return idx >= 0 && idx < p2DepositNeedleSlots.Count ? p2DepositNeedleSlots[idx] : null;
+        }
+    }
 
     private void OnNeedleStolen(int winnerID)
     {
@@ -210,6 +281,7 @@ public class NeedleSpawner : MonoBehaviour
             return;
 
         int actualSteal = Mathf.Min(stealAmount, loserStash.Count);
+        DeactivateDepositSlots(loserID, actualSteal);
 
         for (int i = 0; i < actualSteal; i++)
         {
@@ -218,36 +290,82 @@ public class NeedleSpawner : MonoBehaviour
 
             NeedlePickup stolen = loserStash[loserStash.Count - 1];
             loserStash.RemoveAt(loserStash.Count - 1);
-
             stolen.Steal(winnerHold, winnerID, winnerColour);
             winnerStash.Add(stolen);
 
             Vector3 target = winnerPile != null ? winnerPile.position : winnerHold.position;
-            StartCoroutine(DelayedDeposit(stolen, target, i * 0.15f));
+            StartCoroutine(DelayedDeposit(stolen, target, winnerID, i * 0.15f));
+        }
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.killerShotWin, 1f);
+    }
+
+    private void DeactivateDepositSlots(int playerID, int count)
+    {
+        List<GameObject> slots = playerID == 1 ? p1DepositNeedleSlots : p2DepositNeedleSlots;
+        ref int idx = ref (playerID == 1 ? ref p1DepositSlotIndex : ref p2DepositSlotIndex);
+
+        for (int i = 0; i < count; i++)
+        {
+            idx = Mathf.Max(0, idx - 1);
+            if (idx < slots.Count)
+                slots[idx]?.SetActive(false);
         }
     }
 
-    private IEnumerator DelayedDeposit(NeedlePickup needle, Vector3 target, float extraDelay)
+    private IEnumerator DelayedDeposit(
+        NeedlePickup needle,
+        Vector3 target,
+        int playerID,
+        float extraDelay
+    )
     {
         yield return new WaitForSeconds(0.5f + extraDelay);
         needle.Deposit(target);
+        ActivateNextDepositSlot(playerID);
     }
-
-    // Round 3 handoff
 
     public NeedlePickup PopNextProjectile(int playerID)
     {
         List<NeedlePickup> stash = playerID == 1 ? p1Stash : p2Stash;
-        Transform holdPoint = playerID == 1 ? p1HoldPoint : p2HoldPoint;
+        Transform hold = playerID == 1 ? p1HoldPoint : p2HoldPoint;
 
-        if (stash.Count == 0 || holdPoint == null)
+        if (stash.Count == 0 || hold == null)
             return null;
 
         NeedlePickup needle = stash[stash.Count - 1];
         stash.RemoveAt(stash.Count - 1);
-        needle.PrepareAsProjectile(holdPoint, playerID);
+        needle.PrepareAsProjectile(hold, playerID);
         return needle;
     }
 
     public int GetStashCount(int playerID) => playerID == 1 ? p1Stash.Count : p2Stash.Count;
+
+    private IEnumerator PunchScale(Transform t, float peakScale, float duration)
+    {
+        if (t == null)
+            yield break;
+
+        Vector3 original = t.localScale;
+        float half = duration * 0.5f;
+        float elapsed = 0f;
+
+        while (elapsed < half)
+        {
+            elapsed += Time.deltaTime;
+            t.localScale = Vector3.LerpUnclamped(original, original * peakScale, elapsed / half);
+            yield return null;
+        }
+
+        elapsed = 0f;
+        while (elapsed < half)
+        {
+            elapsed += Time.deltaTime;
+            t.localScale = Vector3.LerpUnclamped(original * peakScale, original, elapsed / half);
+            yield return null;
+        }
+
+        t.localScale = original;
+    }
 }
