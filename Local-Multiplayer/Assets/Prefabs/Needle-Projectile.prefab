@@ -27,13 +27,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2186120140551601596}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.5, y: -0.5, z: 0.5, w: 0.5}
-  m_LocalPosition: {x: 2.5771928, y: 4.286573, z: -0.0000024553922}
+  m_LocalRotation: {x: -0.000000029802319, y: 0.00000017881392, z: 0.707107, w: 0.70710665}
+  m_LocalPosition: {x: -0.14, y: 4.233, z: -2.83}
   m_LocalScale: {x: 21.378809, y: 21.378809, z: 21.378809}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4523788450855528341}
-  m_LocalEulerAnglesHint: {x: 0, y: -90, z: 90}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 90}
 --- !u!33 &4157600336546665389
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -122,9 +122,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4523788450855528341}
-  - component: {fileID: 6301096574211640192}
   - component: {fileID: 1708108401414221367}
   - component: {fileID: -2693597590272721195}
+  - component: {fileID: 6999729590289223028}
   m_Layer: 0
   m_Name: Needle-Projectile
   m_TagString: Untagged
@@ -150,28 +150,6 @@ Transform:
   - {fileID: 6851227153769476084}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
---- !u!64 &6301096574211640192
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3725605595407000526}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 1
-  m_CookingOptions: 30
-  m_Mesh: {fileID: 2534964839176971238, guid: e74b525e0bcd82b4a882aecb4361c0b7, type: 3}
 --- !u!54 &1708108401414221367
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -229,6 +207,27 @@ MonoBehaviour:
   normalKnockbackForce: 5
   powerKnockbackForce: 12
   knockbackUpAngle: 0.15
+--- !u!65 &6999729590289223028
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3725605595407000526}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.84888804, y: 0.5346847, z: 5.699339}
+  m_Center: {x: -0.13467957, y: 4.281343, z: -0.17776057}
 --- !u!1 &6445451936477280054
 GameObject:
   m_ObjectHideFlags: 0
@@ -256,13 +255,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6445451936477280054}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.5, y: -0.5, z: 0.5, w: 0.5}
+  m_LocalRotation: {x: -0.000000029802319, y: 0.00000017881392, z: 0.707107, w: 0.70710665}
   m_LocalPosition: {x: -0.14517994, y: 4.2357473, z: 0}
   m_LocalScale: {x: 17.990934, y: 17.990934, z: 264.6223}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4523788450855528341}
-  m_LocalEulerAnglesHint: {x: 0, y: -90, z: 90}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 90}
 --- !u!33 &5500306829531246608
 MeshFilter:
   m_ObjectHideFlags: 0
