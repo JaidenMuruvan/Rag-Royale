@@ -6,11 +6,11 @@ public class RoundTimer : MonoBehaviour
 {
     [Header("Settings")]
     [SerializeField]
-    private float duration = 60f; // seconds
+    private float duration = 60f;
 
     //  events
-    public UnityEvent<float> OnTimerTick; // fires every frame with time remaining
-    public UnityEvent OnTimerExpired; // fires once at zero
+    public UnityEvent<float> OnTimerTick;
+    public UnityEvent OnTimerExpired;
 
     public float TimeRemaining { get; private set; }
     public bool IsRunning { get; private set; }

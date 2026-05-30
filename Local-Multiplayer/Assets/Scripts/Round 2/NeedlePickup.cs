@@ -15,6 +15,10 @@ public class NeedlePickup : MonoBehaviour
     [SerializeField]
     private float dropDuration = 0.35f;
 
+    [Header("sphere Renderer")]
+    [SerializeField]
+    private Renderer sphereRenderer;
+
     public enum NeedleState
     {
         InPile,
@@ -29,7 +33,6 @@ public class NeedlePickup : MonoBehaviour
     private Transform holdPoint;
     private Collider col;
     private Rigidbody rb;
-    private Renderer rend;
 
     private Vector3 pileRestPosition;
     private Coroutine dropCoroutine;
@@ -38,7 +41,9 @@ public class NeedlePickup : MonoBehaviour
     {
         col = GetComponent<Collider>();
         rb = GetComponent<Rigidbody>();
-        rend = GetComponent<Renderer>();
+
+        if (sphereRenderer == null)
+            sphereRenderer = GetComponentInChildren<Renderer>();
 
         if (rb != null)
         {
@@ -52,8 +57,6 @@ public class NeedlePickup : MonoBehaviour
         if (CurrentState == NeedleState.HeldByPlayer)
             SnapToHoldPoint();
     }
-
-    // State transitions
 
     public void Collect(Transform playerHoldPoint, int playerID, Color playerColour)
     {
@@ -198,8 +201,6 @@ public class NeedlePickup : MonoBehaviour
             transform.rotation = Quaternion.LookRotation(direction);
     }
 
-    // Movement
-
     private void SnapToHoldPoint()
     {
         if (holdPoint == null)
@@ -213,11 +214,10 @@ public class NeedlePickup : MonoBehaviour
         );
     }
 
-    /// <summary>Smooth arc to a world position, then fire a callback.</summary>
     private IEnumerator ArcTo(Vector3 target, System.Action onComplete)
     {
         Vector3 start = transform.position;
-        Vector3 mid = (start + target) * 0.5f + Vector3.up * 0.3f; // slight upward arc
+        Vector3 mid = (start + target) * 0.5f + Vector3.up * 0.3f;
         float elapsed = 0f;
 
         while (elapsed < dropDuration)
@@ -228,6 +228,7 @@ public class NeedlePickup : MonoBehaviour
 
             transform.position =
                 Mathf.Pow(1 - et, 2) * start + 2f * (1 - et) * et * mid + Mathf.Pow(et, 2) * target;
+
             yield return null;
         }
 
@@ -238,7 +239,7 @@ public class NeedlePickup : MonoBehaviour
 
     private void SetColour(Color colour)
     {
-        if (rend != null)
-            rend.material.color = colour;
+        if (sphereRenderer != null)
+            sphereRenderer.material.color = colour;
     }
 }
